@@ -1,4 +1,6 @@
 # promptmap
+![logo](./assets/images/promptmap_logo.png)
+
 ## Introduction
 PromptMap is an open source OSINT tool that extracts critical information (e.g., personal and sensitive information) trained by large language models (LLMs) such as ChatGPT, Bard.  
 
