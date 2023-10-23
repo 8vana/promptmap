@@ -1,12 +1,21 @@
 # promptmap
-![logo](./assets/images/promptmap_logo.png)
+![logo](./assets/images/promptmap_logo.png)  
 
 ## Introduction
-PromptMap is an open source OSINT tool that extracts critical information (e.g., personal and sensitive information) trained by large language models (LLMs) such as ChatGPT, Bard.  
-
-PromptMap has an excellent set of prompts and can extract the information you want from LLMs.By using PromptMap, you will be able to quickly find your personal information or sensitive corporate information that has been trained by LLMs, thereby reducing the damage of information leakage.  
+PromptMap is a Prompt Injection attacks testing tool.  
+This tool performs fully automated Prompt Injection attack tests against them to assess the robustness of generative AI and generative AI-integrated apps. This tool is intended to be used by developers for security testing.
 
 ## Features
+PromptMap supports the following attack tests.  
+
+### Direct Prompt Injection/Jailbreak
+PromptMap injects malicious prompts into a generative AI and evaluates whether the generative AI generates malicious contents or leaks generative AI's training data.
+
+### Prompt Leaking
+PromptMap injects malicious prompts into generative AI-integrated applications and evaluates whether the generative AI-integrated applications leak the prompt templates implemented by the apps.
+
+### P2SQL Injection
+PromptMap injects malicious prompts into generative AI-integrated applications and evaluates to steal, modify, or delete information from the database connected to the generative AI-integrated applications.
 
 ## Download
 
@@ -15,6 +24,9 @@ PromptMap has an excellent set of prompts and can extract the information you wa
 ## Demo
 
 ## Contribute
+Prompt Injection attacks have different principles from those used in existing attack methods, and it is difficult to evaluate their robustness using existing security testing methods.  
+
+Therefore, PromptMap supports a wide variety of Prompt Injection attacks and enables fully automated execution, contributing to security testing for developers of generative AI and generative AI-integrated applications.
 
 ## Donate
 
