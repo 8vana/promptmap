@@ -1,0 +1,4 @@
+pyrit
+inquirer
+colorama
+pillow
