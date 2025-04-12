@@ -162,3 +162,5 @@ cython_debug/
 # promptmap
 .promptmap_config.json
 promptmap_config.json
+promptmap/
+.idea/

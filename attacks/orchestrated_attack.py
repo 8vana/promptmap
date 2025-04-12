@@ -20,7 +20,7 @@ async def run_attack(target):
         )
         prompts = [seed_prompt.value for seed_prompt in seed_prompt_dataset.prompts]
 
-        with PromptSendingOrchestrator(prompt_target=target,
+        with PromptSendingOrchestrator(objective_target=target,
                                        prompt_converters=[UrlConverter()]) as orchestrator:
             await orchestrator.send_prompts_async(prompt_list=prompts)
             await orchestrator.print_conversations()
