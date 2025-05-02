@@ -1,4 +1,3 @@
-import os
 import importlib
 import pathlib
 
@@ -9,7 +8,7 @@ attacks_dir = pathlib.Path(__file__).parent
 
 # Scan all .py files in the attacks directory.
 for file in attacks_dir.glob("*.py"):
-    if file.name == "__init__.py":
+    if file.name in ("__init__.py", "attack_util.py"):
         continue  # Skip "__init__.py"
     module_name = file.stem  # The part of the file name excluding the extension
     try:
