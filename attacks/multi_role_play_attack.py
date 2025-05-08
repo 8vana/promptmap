@@ -29,6 +29,7 @@ async def run_attack(objective_target, adversarial_target, scoring_target):
             adversarial_chat=adversarial_target,
             role_play_definition_path=RolePlayPaths.MOVIE_SCRIPT.value,
             scorers=[AzureContentFilterScorer()],
+            verbose=True
         )
         await run_single_turn_attack_sync(orchestrator, role_play_objective)
     except Exception as e:

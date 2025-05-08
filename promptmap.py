@@ -6,9 +6,9 @@ import asyncio
 from colorama import init, Fore, Style
 init(autoreset=True)
 
-from attacks import ATTACKS_MAPPING
 from ascii_art import image_to_colored_ascii_with_promptmap
 from proverb import show_random_proverb
+from utils import load_mapping, load_dataset, get_attack_function
 
 from pyrit.common import initialize_pyrit, DUCK_DB
 from pyrit.memory import DuckDBMemory
@@ -128,58 +128,59 @@ class PromptMapInteractiveShell(cmd.Cmd):
         print(f"Using Score LLM: {score_llm_name}")
 
         # Retrieve dynamically generated test_items.
-        test_items = list(ATTACKS_MAPPING.keys())
+        mapping = load_mapping()
 
-        # Display a prompt with a checkbox using inquirer.
-        questions = [
-            inquirer.Checkbox(
-                'selected_items',
-                message='Please select test items:',
-                choices=test_items,
+        # Select test items.
+        test_items = list(mapping["test_items"].keys())
+        answers = inquirer.prompt([
+            inquirer.List(
+                "test_item",
+                message="Select Test Item",
+                choices=test_items
             )
-        ]
+        ])
+        ti = answers["test_item"]
 
-        # Prompts the user to respond.
-        answers = inquirer.prompt(questions)
+        # Select the attack method corresponding to the test item.
+        attacks = mapping["test_items"][ti]
+        answers = inquirer.prompt([
+             inquirer.Checkbox(
+                "attacks",
+                message=f"Select attacks for {ti}",
+                choices=attacks
+            )
+        ])
+        selected_attacks = answers["attacks"]
 
         # Processing the results.
-        # DEBUG
-        # answers = {'selected_items': []}
-        # answers['selected_items'] = ['(Single) Basic Prompt Injection']
-        # answers['selected_items'] = ['(Multi) Red-Teaming Attack']
-        if answers and 'selected_items' in answers:
-            selected_items = answers['selected_items']
-            if selected_items:
-                print("You have selected test item:")
-                for item in test_items:
-                    if item in selected_items:
-                        print(f"[*]: {item}")
+        if answers and "attacks" in answers:
+            # Internal function for asynchronous execution of attacks.
+            async def run_attacks(selected_attacks, http_prompt_target):
+                for attack_name in selected_attacks:
+                    dataset_file = mapping["attack_datasets"][attack_name]
+                    prompts = load_dataset(dataset_file, ti)
+                    attack_function = get_attack_function(attack_name)
+                    print(f"\n[+] Running {attack_name} with dataset {dataset_file} ({len(prompts)} prompts)")
 
-                # Internal function for asynchronous execution of attacks.
-                async def run_attacks(selected_items, http_prompt_target):
-                    for item in selected_items:
-                        attack_function = ATTACKS_MAPPING.get(item)
-                        if attack_function:
-                            print(f"\n[+] Executing attack: {item}")
-                            try:
-                                if "(Single)" in item:
-                                    await attack_function(http_prompt_target, scoring_target)
-                                elif "(Multi)" in item:
-                                    await attack_function(http_prompt_target, adversarial_target, scoring_target)
-                                else:
-                                    raise ValueError("The name of the attack method is invalid.")
-                            except Exception as e:
-                                print(f"[!] Error executing {item}: {e}")
-                        else:
-                            print(f"[!] No attack function found for: {item}")
+                    if attack_function:
+                        print(f"\n[+] Executing attack: {attack_name}")
+                        try:
+                            if "Single_" in attack_name:
+                                await attack_function(http_prompt_target, prompts, scoring_target)
+                            elif "Multi_" in attack_name:
+                                await attack_function(http_prompt_target, prompts, adversarial_target, scoring_target)
+                            else:
+                                raise ValueError("The name of the attack method is invalid.")
+                        except Exception as e:
+                            print(f"[!] Error executing {attack_name}: {e}")
+                    else:
+                        print(f"[!] No attack function found for: {attack_name}")
 
-                # Executing an asynchronous function.
-                try:
-                    asyncio.run(run_attacks(selected_items, objective_target))
-                except RuntimeError as e:
-                    print(f"[!] Failed to execute attacks: {e}")
-            else:
-                print("No test items selected.")
+            # Executing an asynchronous function.
+            try:
+                asyncio.run(run_attacks(selected_attacks, objective_target))
+            except RuntimeError as e:
+                print(f"[!] Failed to execute attacks: {e}")
         else:
             print("Operation cancelled.")
 
