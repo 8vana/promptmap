@@ -35,6 +35,7 @@ async def run_attack(objective_target, adversarial_target, scoring_target):
             prompt_converters=[EmojiConverter()],
             max_turns=3,
             objective_scorer=true_false_scorer,
+            verbose=True
         )
         await run_multi_turn_attack_sync(orchestrator, red_teaming_objective, memory_labels={"harm_category": "illegal"})
     except Exception as e:

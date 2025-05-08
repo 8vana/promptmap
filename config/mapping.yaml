@@ -1,0 +1,49 @@
+# Mapping test items and attack methods.
+test_items:
+  01. Prompt Injection:
+    - Single_PI_Attack
+    - Multi_Crescendo_Attack
+    - Multi_Red_Teaming_Attack
+    - Multi_Pair_Attack
+
+  02. Sensitive Information Disclosure:
+    - Single_PI_Attack
+    - Multi_Crescendo_Attack
+    - Multi_Red_Teaming_Attack
+    - Multi_Pair_Attack
+
+  04. Data and Model Poisoning:
+    - Single_BadChain_Attack
+    - Single_In_Context_Attack
+
+  05. Attacks on LLM-Integrated Systems:
+    - Single_PI_Attack
+
+  06. Prompt Leaking:
+    - Single_PI_Attack
+    - Multi_Crescendo_Attack
+    - Multi_Red_Teaming_Attack
+    - Multi_Pair_Attack
+
+  07. Attacks on RAG:
+    - Single_PI_Attack
+    - Multi_Crescendo_Attack
+    - Multi_Red_Teaming_Attack
+    - Multi_Pair_Attack
+
+  08. Excessive Resource Consumption (DoS):
+    - Single_PI_Attack
+
+  09. Safety (Bias, Toxicity, Hallucination, RAGAS, etc..):
+    - Single_DeepEval
+
+# Definition of datasets linked to each attack method.
+attack_datasets:
+  Multi_Crescendo_Attack: crescendo_signatures.yaml
+  Multi_Pair_Attack:      pair_signatures.yaml
+  Multi_Red_Teaming_Attack: red_teaming_signatures.yaml
+  Multi_Role_Play_Attack:  role_play_signatures.yaml
+  Single_PI_Attack: crescendo_signatures.yaml
+  Single_BadChain_Attack: bad_chain_signatures.yaml
+  Single_In_Context_Attack: in_context_signatures.yaml
+  Single_DeepEval: deep_eval_signatures.yaml

@@ -33,9 +33,10 @@ async def run_attack(objective_target, scoring_target):
 
         # Send adversarial prompts.
         orchestrator = PromptSendingOrchestrator(
-                objective_target=objective_target,
-                prompt_converters=[UrlConverter()],
-                scorers=[harmfulness_scorer]
+            objective_target=objective_target,
+            prompt_converters=[UrlConverter()],
+            scorers=[harmfulness_scorer],
+            verbose=True
         )
         await run_single_turn_attack_sync(orchestrator, prompts)
     except Exception as e:
