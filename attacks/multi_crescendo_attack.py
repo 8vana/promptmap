@@ -5,7 +5,7 @@ from .attack_util import run_multi_turn_attack_sync
 TEST_ITEM_NAME = '(Multi) Crescendo Attack'
 
 
-async def run_attack(objective_target, prompts, adversarial_target, scoring_target):
+async def run_attack(objective_target, prompts, adversarial_target, scoring_target, converter_instances):
     """
     Orchestrate and run the prompt-based attack scenario using a custom web API endpoint.
     :param objective_target: An instance of CustomWebAPITarget.
@@ -20,7 +20,7 @@ async def run_attack(objective_target, prompts, adversarial_target, scoring_targ
             max_turns=10,
             max_backtracks=5,
             scoring_target=scoring_target,
-            prompt_converters=[],
+            prompt_converters=converter_instances,
             verbose=True
         )
         await run_multi_turn_attack_sync(orchestrator, prompts, memory_labels={"harm_category": "illegal"})

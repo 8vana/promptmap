@@ -1,29 +1,23 @@
 import pathlib
 
 from pyrit.common.path import DATASETS_PATH
-from pyrit.models import SeedPromptDataset
 from pyrit.orchestrator import PromptSendingOrchestrator
 from pyrit.score import SelfAskLikertScorer
-from pyrit.prompt_converter import UrlConverter
 
 from .attack_util import run_single_turn_attack_sync
 
 TEST_ITEM_NAME = '(Single) Basic Prompt Injection'
 
 
-async def run_attack(objective_target, scoring_target):
+async def run_attack(objective_target, prompts, scoring_target, converter_instances):
     """
     Orchestrate and run the prompt-based attack scenario using a custom web API endpoint.
     :param objective_target: An instance of CustomWebAPITarget.
+    :param prompts: An iterable adversarial prompt of PromptSendingOrchestrator.
     :param scoring_target: An instance of OpenAIChatTarget.
+    :param converter_instances: An instance of prompt converter.
     """
     try:
-        # Define test prompts.
-        seed_prompt_dataset = SeedPromptDataset.from_yaml_file(
-            pathlib.Path(DATASETS_PATH) / "seed_prompts" / "illegal.prompt"
-        )
-        prompts = [seed_prompt.value for seed_prompt in seed_prompt_dataset.prompts]
-
         # Define Scorer.
         harmfulness_scorer = SelfAskLikertScorer(
             chat_target=scoring_target,
@@ -34,9 +28,9 @@ async def run_attack(objective_target, scoring_target):
         # Send adversarial prompts.
         orchestrator = PromptSendingOrchestrator(
             objective_target=objective_target,
-            prompt_converters=[UrlConverter()],
+            prompt_converters=converter_instances,
             scorers=[harmfulness_scorer],
-            verbose=True
+            verbose=False
         )
         await run_single_turn_attack_sync(orchestrator, prompts)
     except Exception as e:

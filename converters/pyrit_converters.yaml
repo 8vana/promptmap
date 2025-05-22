@@ -1,0 +1,81 @@
+converter_type: PyRIT
+description: This is used to show how these files can be formatted
+converters:
+ - name: None
+   description: コンバーターを使用しない。
+ - name: AnsiAttackConverter
+   description: ANSI 制御文字（カラーコードやカーソル移動シーケンス）を挿入し、解析系を混乱させる。
+ - name: AsciiArtConverter
+   description: テキストを ASCII アートに変換し、プロンプトの見た目と構造を大きく変える。
+ - name: AsciiSmugglerConverter
+   description: 一見スペースや改行にしか見えない ASCII 制御文字を紛れ込ませ、検査をすり抜ける。
+ - name: AtbashConverter
+   description: 古典的なアタbash 暗号でアルファベットを逆順マッピング。
+ - name: Base64Converter
+   description: プロンプトを Base64 文字列にエンコード／デコードし、ペイロードを隠す。
+ - name: BinaryConverter
+   description: 各文字をバイナリ（0/1）で表現し、デコーダーエラーや奇妙なパーシングを誘発。
+ - name: CaesarConverter
+   description: 任意のシフト量で古典的シーザー暗号をかける。
+ - name: CharSwapGenerator
+   description: 文字をランダムに前後入れ替えて、スペリングチェックをすり抜ける変形を大量生成。
+ - name: CharacterSpaceConverter
+   description: 文字間にゼロ幅スペースなどを挿入し、同一文字列に見えるが違うものを作る。
+ - name: CodeChameleonConverter
+   description: テキスト中のコード断片を別言語風に書き換え、解析を混乱させる。
+ - name: ColloquialWordswapConverter
+   description: 口語表現（slang）への言い換えを行い、正規表現ベースのフィルタをすり抜ける。
+ - name: DiacriticConverter
+   description: アクセント記号（ダイアクリティカルマーク）付き文字に置き換え、見た目は同じだが別文字を混ぜる。
+ - name: EmojiConverter
+   description: 単語やフレーズを対応する絵文字に置き換え、意味をかいくぐる。
+ - name: FlipConverter
+   description: 文字や単語の順序を逆転させて入力構造を壊す。
+ - name: InsertPunctuationConverter
+   description: 意図的に句読点を多重挿入／削除してフィルタを欺く。
+ - name: LLMGenericTextConverter
+   description: LLM 向けに最適化された汎用テキスト変換処理（トークン境界の調整など）。
+ - name: LeetspeakConverter
+   description: 文字を数字や記号で代替する「1337」書き換え。
+ - name: MaliciousQuestionGeneratorConverter
+   description: セットの benign プロンプトから自動で悪意ある質問を生成する。
+ - name: MathPromptConverter
+   description: 自然言語を数式形式に置き換え、モデルの数値処理パイプラインを呼び出す。
+ - name: MorseConverter
+   description: テキストをモールス符号に変換し、デコーダーや別パイプで解釈させる。
+ - name: NoiseConverter
+   description: ランダムなノイズ文字列を挿入し、シグネチャ検出を回避。
+ - name: PersuasionConverter
+   description: 説得テキスト（心理トリガー）を付加し、LLM の応答を誘導。
+ - name: ROT13Converter
+   description: アルファベットを 13 文字分シフトする簡易暗号。
+ - name: RandomCapitalLettersConverter
+   description: ランダムに大文字を混ぜ、正規化処理をすり抜ける。
+ - name: RepeatTokenConverter
+   description: 特定のトークンを繰り返し挿入してリソース消費を誘発。
+ - name: SearchReplaceConverter
+   description: 正規表現や文字列検索・置換ルールに基づき動的変換。
+ - name: StringJoinConverter
+   description: 文字列リストを結合し、パーサーの境界検出を混乱させる。
+ - name: SuffixAppendConverter
+   description: 定型の文字列サフィックスを付与し、プロンプトガードをバイパス。
+ - name: TenseConverter
+   description: 動詞の時制を過去形⇔現在形などで切り替える。
+ - name: TextToHexConverter
+   description: テキストを 16 進数表現に変換し、非テキスト経路で読み取らせる。
+ - name: ToneConverter
+   description: 語調（丁寧⇔カジュアル、感情トーンなど）を変化させる。
+ - name: TranslationConverter
+   description: 別言語への翻訳を挟み込み、フィルタやプロンプトガードをすり抜ける。
+ - name: UnicodeConfusableConverter
+   description: 見た目が似た異なる Unicode 文字に置き換えて検出を回避。
+ - name: UnicodeReplacementConverter
+   description: 任意の Unicode 文字列に幅広く置換。
+ - name: UnicodeSubstitutionConverter
+   description: 指定文字を Unicode 別字形に置き換え。
+ - name: UrlConverter
+   description: テキストを URL エンコード／デコードしてリクエストパラメータに埋め込む。
+ - name: VariationConverter
+   description: 複数の変換をランダムに組み合わせたバリエーション生成。
+ - name: ZeroWidthConverter
+   description: ゼロ幅スペースなどを挿入し、一見空白にしか見えない攻撃を混入。
