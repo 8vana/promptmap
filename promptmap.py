@@ -8,7 +8,8 @@ init(autoreset=True)
 
 from ascii_art import image_to_colored_ascii_with_promptmap
 from proverb import show_random_proverb
-from utils import load_mapping, load_dataset, get_attack_function
+from converters.instantiate_converters import instantiate_converters
+from utils import load_mapping, load_dataset, get_attack_function, select_converters
 
 from pyrit.common import initialize_pyrit, DUCK_DB
 from pyrit.memory import DuckDBMemory
@@ -109,6 +110,8 @@ class PromptMapInteractiveShell(cmd.Cmd):
         )
 
         # Define HTTP request and target endpoint (Must be changed according to the app being tested).
+        '''
+        # http://localhost:11434/api/generate
         raw_http_request = f"""
             POST {target_api_endpoint} HTTP/1.1
             Content-Type: application/json
@@ -119,7 +122,18 @@ class PromptMapInteractiveShell(cmd.Cmd):
                 "stream": false
             }}
         """
-        parsing_fn = get_http_target_json_response_callback_function(key="response")
+        '''
+        #http://localhost:8000/prompt-leaking-lv1
+        raw_http_request = f"""
+            POST {target_api_endpoint} HTTP/1.1
+            Content-Type: application/json
+
+            {{
+                "text": "{{PROMPT}}"
+            }}
+        """
+        #parsing_fn = get_http_target_json_response_callback_function(key="response")
+        parsing_fn = get_http_target_json_response_callback_function(key="text")
         objective_target = HTTPTarget(http_request=raw_http_request, callback_function=parsing_fn, timeout=300.0)
 
         # Here, the processing of the standard command is described.
@@ -151,6 +165,12 @@ class PromptMapInteractiveShell(cmd.Cmd):
             )
         ])
         selected_attacks = answers["attacks"]
+        # selected_attacks = ['Single_PI_Attack']
+        # selected_attacks = ['Multi_Crescendo_Attack']
+
+        # Select converters.
+        converters_map = select_converters()
+        converter_instances = instantiate_converters(converters_map)
 
         # Processing the results.
         if answers and "attacks" in answers:
@@ -166,9 +186,20 @@ class PromptMapInteractiveShell(cmd.Cmd):
                         print(f"\n[+] Executing attack: {attack_name}")
                         try:
                             if "Single_" in attack_name:
-                                await attack_function(http_prompt_target, prompts, scoring_target)
+                                await attack_function(
+                                    http_prompt_target,
+                                    prompts,
+                                    scoring_target,
+                                    converter_instances
+                                )
                             elif "Multi_" in attack_name:
-                                await attack_function(http_prompt_target, prompts, adversarial_target, scoring_target)
+                                await attack_function(
+                                    http_prompt_target,
+                                    prompts,
+                                    adversarial_target,
+                                    scoring_target,
+                                    converter_instances
+                                )
                             else:
                                 raise ValueError("The name of the attack method is invalid.")
                         except Exception as e:
