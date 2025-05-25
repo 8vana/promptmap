@@ -9,7 +9,7 @@ init(autoreset=True)
 from ascii_art import image_to_colored_ascii_with_promptmap
 from proverb import show_random_proverb
 from converters.instantiate_converters import instantiate_converters
-from utils import load_mapping, load_dataset, get_attack_function, select_converters
+from utils import *
 
 from pyrit.common import initialize_pyrit, DUCK_DB
 from pyrit.memory import DuckDBMemory
@@ -122,8 +122,10 @@ class PromptMapInteractiveShell(cmd.Cmd):
                 "stream": false
             }}
         """
+        parsing_fn = get_http_target_json_response_callback_function(key="response")
         '''
         #http://localhost:8000/prompt-leaking-lv1
+        #http://localhost:8000/prompt-leaking-lv2
         raw_http_request = f"""
             POST {target_api_endpoint} HTTP/1.1
             Content-Type: application/json
@@ -132,8 +134,8 @@ class PromptMapInteractiveShell(cmd.Cmd):
                 "text": "{{PROMPT}}"
             }}
         """
-        #parsing_fn = get_http_target_json_response_callback_function(key="response")
         parsing_fn = get_http_target_json_response_callback_function(key="text")
+
         objective_target = HTTPTarget(http_request=raw_http_request, callback_function=parsing_fn, timeout=300.0)
 
         # Here, the processing of the standard command is described.
@@ -157,14 +159,16 @@ class PromptMapInteractiveShell(cmd.Cmd):
 
         # Select the attack method corresponding to the test item.
         attacks = mapping["test_items"][ti]
-        answers = inquirer.prompt([
-             inquirer.Checkbox(
+        questions = [
+            inquirer.Checkbox(
                 "attacks",
                 message=f"Select attacks for {ti}",
-                choices=attacks
+                choices=attacks,
+                validate=at_least_one
             )
-        ])
-        selected_attacks = answers["attacks"]
+        ]
+        answers = inquirer.prompt(questions)
+        selected_attacks = answers.get("attacks", [])
         # selected_attacks = ['Single_PI_Attack']
         # selected_attacks = ['Multi_Crescendo_Attack']
 
@@ -178,7 +182,7 @@ class PromptMapInteractiveShell(cmd.Cmd):
             async def run_attacks(selected_attacks, http_prompt_target):
                 for attack_name in selected_attacks:
                     dataset_file = mapping["attack_datasets"][attack_name]
-                    prompts = load_dataset(dataset_file, ti)
+                    prompts = select_prompts(load_dataset(dataset_file, ti))
                     attack_function = get_attack_function(attack_name)
                     print(f"\n[+] Running {attack_name} with dataset {dataset_file} ({len(prompts)} prompts)")
 
