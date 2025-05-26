@@ -110,7 +110,6 @@ class PromptMapInteractiveShell(cmd.Cmd):
         )
 
         # Define HTTP request and target endpoint (Must be changed according to the app being tested).
-        '''
         # http://localhost:11434/api/generate
         raw_http_request = f"""
             POST {target_api_endpoint} HTTP/1.1
@@ -123,6 +122,7 @@ class PromptMapInteractiveShell(cmd.Cmd):
             }}
         """
         parsing_fn = get_http_target_json_response_callback_function(key="response")
+
         '''
         #http://localhost:8000/prompt-leaking-lv1
         #http://localhost:8000/prompt-leaking-lv2
@@ -135,6 +135,7 @@ class PromptMapInteractiveShell(cmd.Cmd):
             }}
         """
         parsing_fn = get_http_target_json_response_callback_function(key="text")
+        '''
 
         objective_target = HTTPTarget(http_request=raw_http_request, callback_function=parsing_fn, timeout=300.0)
 
@@ -181,8 +182,13 @@ class PromptMapInteractiveShell(cmd.Cmd):
             # Internal function for asynchronous execution of attacks.
             async def run_attacks(selected_attacks, http_prompt_target):
                 for attack_name in selected_attacks:
+                    # Load adversarial prompts.
                     dataset_file = mapping["attack_datasets"][attack_name]
                     prompts = select_prompts(load_dataset(dataset_file, ti))
+
+                    # Apply jailbreak method.
+                    prompts = apply_jailbreak_method(prompts, jailbreak_template=select_jailbreak_methods())
+
                     attack_function = get_attack_function(attack_name)
                     print(f"\n[+] Running {attack_name} with dataset {dataset_file} ({len(prompts)} prompts)")
 

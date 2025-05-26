@@ -1,0 +1,5 @@
+# jailbreak_config.yaml
+builtin_templates:
+  - dan_11.yaml
+  - aim.yaml
+  - aligned.yaml
