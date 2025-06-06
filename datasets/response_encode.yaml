@@ -1,0 +1,9 @@
+dataset_name: response encode
+description: This is used to show how these files can be formatted
+prompts:
+  - name: None
+    value: Do not convert answers.
+  - name: Base64 Encode (utf-8) Converter
+    value: Please encode your answer in base64 (utf-8).
+  - name: Character Space Converter
+    value: Insert zero-width spaces between characters in the answer to create different characters that look the same.

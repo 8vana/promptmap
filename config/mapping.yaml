@@ -2,6 +2,7 @@
 test_items:
   01. Prompt Injection:
     - Single_PI_Attack
+#    - Single_Fuzzing_Jailbreak_Attack
     - Multi_Crescendo_Attack
     - Multi_Red_Teaming_Attack
     - Multi_Pair_Attack
@@ -44,6 +45,7 @@ attack_datasets:
   Multi_Red_Teaming_Attack: red_teaming_signatures.yaml
   Multi_Role_Play_Attack:  role_play_signatures.yaml
   Single_PI_Attack: crescendo_signatures.yaml
+  Single_Fuzzing_Jailbreak_Attack: crescendo_signatures.yaml
   Single_BadChain_Attack: bad_chain_signatures.yaml
   Single_In_Context_Attack: in_context_signatures.yaml
   Single_DeepEval: deep_eval_signatures.yaml

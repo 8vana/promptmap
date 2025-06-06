@@ -1,5 +1,7 @@
 # jailbreak_config.yaml
 builtin_templates:
   - dan_11.yaml
-  - aim.yaml
-  - aligned.yaml
+#  - aim.yaml
+#  - aligned.yaml
+#  - anti_gpt.yaml
+#  - code_nesting.yaml

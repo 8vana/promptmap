@@ -109,6 +109,13 @@ class PromptMapInteractiveShell(cmd.Cmd):
             api_key=score_llm_api_key
         )
 
+        # Define Converter LLM for Jailbreak.
+        converter_target = OpenAIChatTarget(
+            endpoint="https://api.openai.com/v1/chat/completions",
+            model_name=score_llm_name,
+            api_key=score_llm_api_key
+        )
+
         # Define HTTP request and target endpoint (Must be changed according to the app being tested).
         # http://localhost:11434/api/generate
         raw_http_request = f"""
@@ -186,9 +193,6 @@ class PromptMapInteractiveShell(cmd.Cmd):
                     dataset_file = mapping["attack_datasets"][attack_name]
                     prompts = select_prompts(load_dataset(dataset_file, ti))
 
-                    # Apply jailbreak method.
-                    prompts = apply_jailbreak_method(prompts, jailbreak_template=select_jailbreak_methods())
-
                     attack_function = get_attack_function(attack_name)
                     print(f"\n[+] Running {attack_name} with dataset {dataset_file} ({len(prompts)} prompts)")
 
@@ -196,12 +200,25 @@ class PromptMapInteractiveShell(cmd.Cmd):
                         print(f"\n[+] Executing attack: {attack_name}")
                         try:
                             if "Single_" in attack_name:
-                                await attack_function(
-                                    http_prompt_target,
-                                    prompts,
-                                    scoring_target,
-                                    converter_instances
-                                )
+                                # 20250606時点で本機能「Single_Fuzzing_Jailbreak_Attack」は使用不可
+                                if attack_name == "Single_Fuzzing_Jailbreak_Attack":
+                                    jailbreak_template = select_jailbreak_methods()
+                                    await attack_function(
+                                        http_prompt_target,
+                                        prompts,
+                                        [jailbreak_template],
+                                        scoring_target,
+                                        converter_target
+                                    )
+                                else:
+                                    prompts = apply_jailbreak_method(prompts, jailbreak_template=select_jailbreak_methods())
+                                    prompts = apply_response_converter_method(prompts, response_converter=select_response_converter())
+                                    await attack_function(
+                                        http_prompt_target,
+                                        prompts,
+                                        scoring_target,
+                                        converter_instances
+                                    )
                             elif "Multi_" in attack_name:
                                 await attack_function(
                                     http_prompt_target,
