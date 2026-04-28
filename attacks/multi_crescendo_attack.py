@@ -21,7 +21,7 @@ async def run_attack(objective_target, prompts, adversarial_target, scoring_targ
             max_backtracks=5,
             scoring_target=scoring_target,
             prompt_converters=converter_instances,
-            verbose=True
+            verbose=False
         )
         await run_multi_turn_attack_sync(orchestrator, prompts, memory_labels={"harm_category": "illegal"})
     except Exception as e:

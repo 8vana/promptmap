@@ -118,21 +118,24 @@ class PromptMapInteractiveShell(cmd.Cmd):
 
         # Define HTTP request and target endpoint (Must be changed according to the app being tested).
         # http://localhost:11434/api/generate
+        '''
         raw_http_request = f"""
             POST {target_api_endpoint} HTTP/1.1
             Content-Type: application/json
 
             {{
-                "model": "llama3.2",
+                "model": "llama3.2:3B",
                 "prompt": "{{PROMPT}}",
                 "stream": false
             }}
         """
         parsing_fn = get_http_target_json_response_callback_function(key="response")
-
         '''
+
         #http://localhost:8000/prompt-leaking-lv1
         #http://localhost:8000/prompt-leaking-lv2
+        #http://localhost:8000/prompt-leaking-lv3
+        #http://localhost:8000/llm4shell-lv2/
         raw_http_request = f"""
             POST {target_api_endpoint} HTTP/1.1
             Content-Type: application/json
@@ -142,7 +145,6 @@ class PromptMapInteractiveShell(cmd.Cmd):
             }}
         """
         parsing_fn = get_http_target_json_response_callback_function(key="text")
-        '''
 
         objective_target = HTTPTarget(http_request=raw_http_request, callback_function=parsing_fn, timeout=300.0)
 
@@ -164,6 +166,7 @@ class PromptMapInteractiveShell(cmd.Cmd):
             )
         ])
         ti = answers["test_item"]
+        #ti = "01. Prompt Injection"  # DEBUG
 
         # Select the attack method corresponding to the test item.
         attacks = mapping["test_items"][ti]
@@ -177,8 +180,8 @@ class PromptMapInteractiveShell(cmd.Cmd):
         ]
         answers = inquirer.prompt(questions)
         selected_attacks = answers.get("attacks", [])
-        # selected_attacks = ['Single_PI_Attack']
-        # selected_attacks = ['Multi_Crescendo_Attack']
+        # selected_attacks = ['Single_PI_Attack']  # DEBUG
+        # selected_attacks = ['Multi_Crescendo_Attack']  # DEBUG
 
         # Select converters.
         converters_map = select_converters()
