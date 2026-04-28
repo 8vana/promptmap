@@ -1,0 +1,12 @@
+from abc import ABC, abstractmethod
+
+
+class TargetAdapter(ABC):
+    @abstractmethod
+    async def send(self, prompt: str, conversation_id: str) -> str: ...
+
+    def set_system_prompt(self, system_prompt: str, conversation_id: str) -> None:
+        """Set a system prompt for a conversation. No-op for stateless targets."""
+
+    def reset_conversation(self, conversation_id: str) -> None:
+        """Clear conversation history. No-op for stateless targets."""
