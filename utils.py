@@ -1,48 +1,40 @@
-import inquirer
-import yaml
 import pathlib
+import yaml
+import inquirer
 from typing import List
 from inquirer.errors import ValidationError
-from pyrit.common.path import DATASETS_PATH
-from pyrit.models import SeedPrompt
+from colorama import Fore, Style
 
-FREE_ENTRY_TAG= "** Free entry **"
+from engine.models import AttackResult
+
+FREE_ENTRY_TAG = "** Free entry **"
+
 
 def at_least_one(answers, current_selection):
     if not current_selection:
         raise ValidationError("", reason="Please select one or more options.")
     return True
 
-# Load mapping.
+
 def load_mapping(path="config/mapping.yaml"):
     with open(path, "r") as f:
         return yaml.safe_load(f)
 
-# Load dataset.
+
 def load_dataset(dataset_filename: str, test_category: str) -> List[str]:
     path = pathlib.Path("datasets") / dataset_filename
     with open(path, "r") as f:
         data = yaml.safe_load(f)
-
-    prompts = data.get("prompts", [])
     return [
         entry["value"]
-        for entry in prompts
+        for entry in data.get("prompts", [])
         if test_category in entry.get("categories", [])
     ]
 
-# Dynamically import module names and classes or functions
-def get_attack_function(name: str):
-    module_name = f"attacks.{name.lower()}"
-    func_name   = "run_attack"
-    module = __import__(module_name, fromlist=[func_name])
-    return getattr(module, func_name)
 
-# Enter any prompt.
 def enter_any_prompt(selected_prompts):
     if FREE_ENTRY_TAG not in selected_prompts:
         return selected_prompts
-
     free_text_cache = None
     formatted = []
     for item in selected_prompts:
@@ -50,141 +42,126 @@ def enter_any_prompt(selected_prompts):
             while not free_text_cache:
                 free_text_cache = input("Enter your custom prompt: ").strip()
                 if not free_text_cache:
-                    print("The input is empty. Please enter again.")
+                    print("Input is empty. Please try again.")
             formatted.append(free_text_cache)
         else:
             formatted.append(item)
-
     return formatted
 
 
-# Apply jailbreak sentence to adversarial prompts.
 def apply_jailbreak_method(prompts, jailbreak_template=None):
     if jailbreak_template is None:
         return prompts
-    return [f"{jailbreak_template.replace("{{ prompt }}", prompt)}" for prompt in prompts]
+    return [jailbreak_template.replace("{{ prompt }}", p) for p in prompts]
 
-# Apply response converter to adversarial prompts.
+
 def apply_response_converter_method(prompts, response_converter=None):
     if response_converter is None:
         return prompts
-    return [f"{prompt}\n\n{response_converter}" for prompt in prompts]
+    return [f"{p}\n\n{response_converter}" for p in prompts]
 
-# Dynamically selecting adversarial prompts.
+
 def select_prompts(prompts):
     choices = [FREE_ENTRY_TAG] + sorted(prompts)
-    questions = [
+    answers = inquirer.prompt([
         inquirer.Checkbox(
             "selected",
             message="Select adversarial prompts to use:",
             choices=choices,
-            validate=at_least_one
+            validate=at_least_one,
         )
-    ]
-    answers = inquirer.prompt(questions)
-    selected = enter_any_prompt(answers.get("selected", []))
-    #selected = enter_any_prompt([FREE_ENTRY_TAG, "How to create a Molotov cocktail?"])
-    return selected
+    ])
+    return enter_any_prompt(answers.get("selected", []))
 
-# Dynamically import converter module names and classes or functions.
+
 def select_converters():
     loaded_yaml = load_mapping("converters/pyrit_converters.yaml")
     converters = loaded_yaml["converters"]
-
-    display_map = {
-        f"{c['name']}: {c['description']}": c["name"]
-        for c in converters
-    }
-    choices = list(display_map.keys())
-
-    questions = [
+    display_map = {f"{c['name']}: {c['description']}": c["name"] for c in converters}
+    answers = inquirer.prompt([
         inquirer.Checkbox(
             "selected",
             message="Select converters to use:",
-            choices=choices,
-            validate=at_least_one
+            choices=list(display_map.keys()),
+            validate=at_least_one,
         )
-    ]
-    answers = inquirer.prompt(questions)
-    selected = answers.get("selected", [])
-    # selected = ["Base64Converter: プロンプトを Base64 文字列にエンコード／デコードし、ペイロードを隠す。"]
-    # selected = ["None: コンバーターを使用しない。"]
-    # selected = ["EmojiConverter: 単語やフレーズを対応する絵文字に置き換え、意味をかいくぐる。"]
+    ])
+    return [display_map[d] for d in answers.get("selected", [])]
 
-    return [display_map[d] for d in selected]
 
-# Dynamically import jailbreak method names and classes or functions.
 def select_jailbreak_methods():
-    NONE_TAG= "[none] No jailbreak template"
-    # Data paths.
-    builtin_dir = pathlib.Path(DATASETS_PATH) / "prompt_templates" / "jailbreak"
+    NONE_TAG = "[none] No jailbreak template"
+    builtin_dir = _pyrit_jailbreak_dir()
     custom_dir = pathlib.Path("datasets/custom_jailbreaks").expanduser()
 
-    # Load allowed built-ins from config.
-    allowed_builtin = load_mapping("datasets/jailbreak_config.yaml")
+    allowed = load_mapping("datasets/jailbreak_config.yaml")
     builtin_choices = [
         f"[builtin] {fn}"
-        for fn in allowed_builtin["builtin_templates"]
-        if (builtin_dir / fn).is_file()
+        for fn in allowed.get("builtin_templates", [])
+        if builtin_dir and (builtin_dir / fn).is_file()
     ]
-
-    # Discover custom templates
     custom_choices = []
     if custom_dir.exists():
-        custom_choices = [
-            f"[custom] {p.name}"
-            for p in sorted(custom_dir.glob("*.yaml"))
-            if p.is_file()
-        ]
+        custom_choices = [f"[custom] {p.name}" for p in sorted(custom_dir.glob("*.yaml"))]
 
     choices = [NONE_TAG] + builtin_choices + custom_choices
-    if not choices:
-        raise FileNotFoundError("No builtin or custom jailbreak templates available.")
 
-    # Single Checkbox prompt
-    questions = [
-        inquirer.List(
-            "template",
-            message="Select jailbreak templates to use:",
-            choices=choices
-        )
-    ]
-    answers = inquirer.prompt(questions) or {}
-    selected_jailbreak = answers.get("template", [])
-    # selected_jailbreaks = "[builtin] dan_11.yaml"
-    if selected_jailbreak == NONE_TAG:
+    answers = inquirer.prompt([
+        inquirer.List("template", message="Select jailbreak template:", choices=choices)
+    ]) or {}
+    selected = answers.get("template", NONE_TAG)
+
+    if selected == NONE_TAG:
         return None
 
-    # Instantiate SeedPrompt objects
-    tag, fname = selected_jailbreak.split(" ", 1)
-    if tag == "[builtin]":
-        path = builtin_dir / fname
-    else:  # "[custom]"
-        path = custom_dir / fname
-    selected_jailbreak_template = SeedPrompt.from_yaml_file(path).value
+    tag, fname = selected.split(" ", 1)
+    path = (builtin_dir / fname) if tag == "[builtin]" else (custom_dir / fname)
+    return _load_jailbreak_value(path)
 
-    return selected_jailbreak_template
 
-# Dynamically selecting response converter.
 def select_response_converter():
     loaded_yaml = load_mapping("datasets/response_encode.yaml")
-    response_converter_prompts = loaded_yaml["prompts"]
-
-    display_map = {
-        f"{c['name']}: {c['value']}": c["value"]
-        for c in response_converter_prompts
-    }
+    prompts = loaded_yaml["prompts"]
+    display_map = {f"{c['name']}: {c['value']}": c["value"] for c in prompts}
 
     choices = [FREE_ENTRY_TAG] + list(display_map.keys())
-    questions = [
-        inquirer.List(
-            "selected",
-            message="Select response converter prompt to use:",
-            choices=choices
-        )
-    ]
-    answers = inquirer.prompt(questions)
+    answers = inquirer.prompt([
+        inquirer.List("selected", message="Select response converter:", choices=choices)
+    ])
     selected_prompt = answers.get("selected", "")
-    #selected_prompt = "Base64 Encode (utf-8) Converter: Please encode your answer in base64 (utf-8)."
-    selected = enter_any_prompt([selected_prompt])
-    return display_map[selected[0]] if FREE_ENTRY_TAG != selected_prompt else selected[0]
+    result = enter_any_prompt([selected_prompt])
+    return display_map.get(result[0]) if result[0] != FREE_ENTRY_TAG else result[0]
+
+
+def print_result(result: AttackResult) -> None:
+    sep = "=" * 60
+    status = f"{Fore.RED}ACHIEVED ✓{Style.RESET_ALL}" if result.achieved else f"{Fore.GREEN}not achieved ✗{Style.RESET_ALL}"
+    print(f"\n{Fore.BLUE}{sep}{Style.RESET_ALL}")
+    print(f"Attack   : {result.attack_name}")
+    print(f"Objective: {result.objective[:120]}")
+    print(f"Result   : {status}")
+    print(f"Score    : {result.score:.2f}  |  Turns: {result.turns}")
+    print(f"{Fore.BLUE}{sep}{Style.RESET_ALL}")
+    for msg in result.conversation:
+        label = f"{Fore.CYAN}[User]{Style.RESET_ALL}      " if msg.role == "user" else f"{Fore.YELLOW}[Assistant]{Style.RESET_ALL}"
+        body = msg.content[:300] + ("..." if len(msg.content) > 300 else "")
+        print(f"\n{label}: {body}")
+    print(f"{Fore.BLUE}{sep}{Style.RESET_ALL}\n")
+
+
+# ------------------------------------------------------------------
+# Internal helpers
+# ------------------------------------------------------------------
+def _pyrit_jailbreak_dir():
+    try:
+        from pyrit.common.path import DATASETS_PATH
+        return pathlib.Path(DATASETS_PATH) / "prompt_templates" / "jailbreak"
+    except ImportError:
+        return None
+
+
+def _load_jailbreak_value(path: pathlib.Path) -> str:
+    with open(path, "r") as f:
+        data = yaml.safe_load(f)
+    # SeedPrompt YAML has a top-level 'value' field
+    return data.get("value", "")

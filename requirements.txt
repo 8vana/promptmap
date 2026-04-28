@@ -2,3 +2,5 @@ pyrit
 inquirer
 colorama
 pillow
+textual
+httpx

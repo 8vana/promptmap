@@ -1,0 +1,306 @@
+/* PromptMap TUI – dark theme */
+
+Screen {
+    background: #0f0f1a;
+    color: #dde0f0;
+}
+
+Header {
+    background: #1a1a2e;
+    color: #6688ff;
+    text-style: bold;
+}
+
+Footer {
+    background: #1a1a2e;
+    color: #555577;
+}
+
+/* ─── Home ─── */
+
+#logo {
+    height: 8;
+    content-align: center middle;
+    color: #4466ee;
+    text-style: bold;
+    background: #0f0f1a;
+    padding: 1 0;
+}
+
+#status-panel {
+    height: 7;
+    background: #141428;
+    border: round #2a2a55;
+    padding: 1 2;
+    margin: 0 1 1 1;
+}
+
+#status-panel Label {
+    color: #9999cc;
+}
+
+#nav-row {
+    height: 5;
+    align: center middle;
+    padding: 0 1;
+}
+
+.nav-btn {
+    width: 1fr;
+    background: #1e1e38;
+    border: tall #33336a;
+    color: #aaaadd;
+    margin: 0 1;
+}
+
+.nav-btn:hover {
+    background: #2a2a88;
+    color: #ffffff;
+    border: tall #5555cc;
+}
+
+.nav-btn:focus {
+    background: #333399;
+    border: tall #6666ff;
+}
+
+#recent-box {
+    border: round #2a2a55;
+    margin: 0 1 1 1;
+    padding: 0 1;
+    height: 1fr;
+}
+
+.panel-title {
+    color: #6688ff;
+    text-style: bold;
+    padding: 0 0 1 0;
+}
+
+/* ─── Settings ─── */
+
+.settings-form {
+    background: #141428;
+    border: round #2a2a55;
+    padding: 1 2;
+    margin: 1 2;
+    height: auto;
+}
+
+.field-label {
+    color: #8888bb;
+    margin-top: 1;
+}
+
+Input {
+    background: #1a1a30;
+    border: tall #33335a;
+    color: #dde0f0;
+}
+
+Input:focus {
+    border: tall #5566cc;
+}
+
+/* ─── Wizard ─── */
+
+#step-indicator {
+    height: 3;
+    background: #141428;
+    padding: 0 2;
+    border-bottom: solid #2a2a55;
+    content-align: left middle;
+}
+
+.step-dot {
+    color: #333366;
+}
+
+.step-dot-active {
+    color: #5577ff;
+    text-style: bold;
+}
+
+#wizard-body {
+    height: 1fr;
+    padding: 1 2;
+}
+
+.step-title {
+    color: #6688ff;
+    text-style: bold;
+    margin-bottom: 1;
+}
+
+SelectionList {
+    border: round #2a2a55;
+    background: #141428;
+    height: 1fr;
+}
+
+Select {
+    background: #141428;
+    border: tall #2a2a55;
+}
+
+#free-prompt-input {
+    margin-top: 1;
+}
+
+#wizard-nav {
+    height: 5;
+    background: #141428;
+    padding: 1 2;
+    border-top: solid #2a2a55;
+}
+
+Button.-primary {
+    background: #3355bb;
+    color: white;
+    border: tall #4466cc;
+}
+
+Button.-primary:hover {
+    background: #4466dd;
+}
+
+Button {
+    background: #1e1e38;
+    color: #aaaadd;
+    border: tall #33336a;
+    margin: 0 1;
+}
+
+Button:hover {
+    background: #2a2a55;
+}
+
+Button:disabled {
+    color: #444466;
+    background: #141428;
+}
+
+/* ─── Execution ─── */
+
+#exec-body {
+    height: 1fr;
+}
+
+#exec-left {
+    width: 2fr;
+    border-right: solid #2a2a55;
+}
+
+#lbl-attack {
+    height: 2;
+    background: #1a1a2e;
+    padding: 0 1;
+    color: #88aaff;
+    text-style: bold;
+    content-align: left middle;
+}
+
+#lbl-objective {
+    height: 2;
+    background: #141428;
+    padding: 0 1;
+    color: #9999cc;
+    content-align: left middle;
+}
+
+#conv-log {
+    height: 1fr;
+    background: #0f0f1a;
+    border: none;
+    padding: 0 1;
+}
+
+#exec-right {
+    width: 30;
+    padding: 0 1;
+    background: #0f0f1a;
+}
+
+#scores-title {
+    color: #6688ff;
+    text-style: bold;
+    padding: 1 0 0 0;
+}
+
+#score-log {
+    height: 1fr;
+    background: #0f0f1a;
+    border: none;
+}
+
+#exec-progress {
+    margin: 1 0;
+}
+
+#lbl-progress {
+    color: #555577;
+    text-align: center;
+}
+
+/* ─── Agent Scan ─── */
+
+#agent-form {
+    height: auto;
+    background: #141428;
+    border: round #2a2a55;
+    padding: 1 2;
+    margin: 1 2;
+}
+
+#agent-log {
+    height: 1fr;
+    background: #0f0f1a;
+    border: round #2a2a55;
+    margin: 0 2 1 2;
+    padding: 0 1;
+}
+
+/* ─── Results ─── */
+
+#results-body {
+    height: 1fr;
+}
+
+#result-table-container {
+    width: 2fr;
+    border-right: solid #2a2a55;
+    padding: 0 1;
+}
+
+#detail-container {
+    width: 3fr;
+    padding: 0 1;
+}
+
+#detail-log {
+    height: 1fr;
+    background: #0f0f1a;
+    border: none;
+}
+
+#results-footer-row {
+    height: 5;
+    background: #141428;
+    padding: 1 2;
+    border-top: solid #2a2a55;
+}
+
+DataTable {
+    background: #0f0f1a;
+    height: 1fr;
+}
+
+DataTable > .datatable--header {
+    background: #1a1a2e;
+    color: #6688ff;
+    text-style: bold;
+}
+
+DataTable > .datatable--cursor {
+    background: #2a2a55;
+}
