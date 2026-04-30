@@ -38,7 +38,7 @@ PromptMap provides two interfaces:
 PromptMapApp (TUI) / PromptMapInteractiveShell (CLI)
 │
 └─ AttackContext
-       ├─ target              TargetAdapter         ← AI system under test (HTTP endpoint)
+       ├─ target              TargetAdapter         ← AI system under test
        ├─ adversarial_target  OpenAITargetAdapter   ← Attack prompt generator
        ├─ scorer              LLMJudgeScorer        ← LLM-as-a-Judge (1–10 Likert scale)
        ├─ converters          list[BaseConverter]   ← Optional prompt obfuscation pipeline
@@ -46,8 +46,9 @@ PromptMapApp (TUI) / PromptMapInteractiveShell (CLI)
        └─ available_attacks   dict[str, BaseAttack]
 
 Targets
-  ├─ HTTPTargetAdapter      POST to any JSON HTTP endpoint
-  └─ OpenAITargetAdapter    OpenAI-compatible chat API (manages per-conversation history)
+  ├─ HTTPTargetAdapter        POST to any JSON HTTP endpoint
+  ├─ PlaywrightTargetAdapter  Browser automation — navigates to web-embedded LLM chat UIs
+  └─ OpenAITargetAdapter      OpenAI-compatible chat API (manages per-conversation history)
 
 Converters  (24 native, stdlib-only — no external dependency)
   Encoding  : Base64, Binary, TextToHex, Url, ROT13, Caesar, Atbash
@@ -63,7 +64,7 @@ Converters  (24 native, stdlib-only — no external dependency)
 
 - Python 3.12+
 - An **OpenAI-compatible API endpoint** for the adversarial LLM and scorer (e.g. GPT-4o-mini)
-- An HTTP JSON endpoint for the AI system under test
+- A target AI system — either an **HTTP JSON endpoint** or a **web-based LLM chat UI** (browser target)
 
 ### Install dependencies
 
@@ -79,6 +80,21 @@ pillow
 textual
 httpx
 openai
+playwright
+```
+
+#### Additional setup for the Browser Target
+
+If you plan to use the browser-based target, install a Playwright browser binary after installing the Python package:
+
+```bash
+playwright install chromium
+```
+
+To install all supported browsers (chromium, firefox, webkit):
+
+```bash
+playwright install
 ```
 
 ---
@@ -96,15 +112,112 @@ Both variables are read at startup. If unset, a warning is shown and the tool ca
 
 ### Other settings (persisted to `~/.promptmap_config.json`)
 
+Configure these interactively via the **Settings** screen in the TUI, or the `setting` command in the CLI.
+
+#### HTTP API target
+
 | Field | Description | Example |
 |---|---|---|
+| `target_type` | Target type | `http` |
 | `api_endpoint` | POST URL of the target AI application | `http://localhost:8000/chat` |
 | `body_template` | JSON body with `{PROMPT}` placeholder | `{"text": "{PROMPT}"}` |
 | `response_key` | JSON key used to extract the response | `text` |
 | `adv_llm_name` | Model name for the adversarial LLM | `gpt-4o-mini` |
 | `score_llm_name` | Model name for the scorer LLM | `gpt-4o-mini` |
 
-Configure these interactively via the **Settings** screen in the TUI, or the `setting` command in the CLI.
+#### Browser target
+
+| Field | Description | Example |
+|---|---|---|
+| `target_type` | Target type | `browser` |
+| `browser_config_path` | Path to the browser target YAML config file | `/path/to/browser_target.yaml` |
+| `adv_llm_name` | Model name for the adversarial LLM | `gpt-4o-mini` |
+| `score_llm_name` | Model name for the scorer LLM | `gpt-4o-mini` |
+
+---
+
+## Browser Target
+
+The browser target allows PromptMap to test LLM interfaces embedded in web applications — for example, a chatbot that requires login and several page navigations to reach.
+
+### How it works
+
+1. PromptMap launches a Playwright browser (Chromium by default).
+2. The browser executes the navigation steps defined in the YAML config (login, page transitions, etc.).
+3. For each attack prompt, PromptMap types it into the chat input field, triggers send, and waits for the AI response to appear in the DOM.
+4. The response is extracted and scored exactly like any other target.
+
+### Response detection
+
+Both synchronous and asynchronous response patterns are supported transparently, because PromptMap monitors the DOM rather than the HTTP layer:
+
+| Pattern | Example | Strategy |
+|---|---|---|
+| Synchronous | Response returned in the same HTTP request | `new_element` |
+| Asynchronous | Separate polling request / WebSocket / SSE | `new_element` |
+| Streaming / typewriter | Response updated character-by-character | `content_stable` |
+
+### Session management
+
+Cookie-based sessions and JavaScript-managed JWTs are handled transparently (real browser). For pre-obtained tokens that must be injected manually, use the `set_extra_http_headers` or `evaluate` navigation actions.
+
+### Browser config YAML
+
+Create a YAML file that describes how to navigate to the chat interface and how to interact with it. See [`examples/browser_target_example.yaml`](examples/browser_target_example.yaml) for a fully annotated reference.
+
+```yaml
+browser: chromium   # chromium | firefox | webkit
+headless: true
+
+navigation:
+  - action: goto
+    url: "https://example.com/login"
+  - action: fill
+    selector: "#username"
+    value: "your-username"
+  - action: fill
+    selector: "#password"
+    value: "your-password"
+  - action: click
+    selector: "button[type='submit']"
+  - action: wait_for_url
+    pattern: "**/dashboard"
+  - action: click
+    selector: "a[href='/chat']"
+  - action: wait_for_selector
+    selector: "#chat-input"
+
+chat:
+  input_selector: "#chat-input"
+  send_selector: "#send-button"      # omit to press Enter instead
+  response_selector: ".message.assistant"
+  response_wait_strategy: "new_element"   # or "content_stable"
+  response_timeout: 30000
+```
+
+### Supported navigation actions
+
+| Action | Description |
+|---|---|
+| `goto` | Navigate to a URL |
+| `fill` | Type text into an input field |
+| `click` | Click an element |
+| `wait_for_selector` | Wait until an element appears in the DOM |
+| `wait_for_url` | Wait until the URL matches a glob pattern |
+| `select` | Choose a `<select>` dropdown option |
+| `press` | Press a keyboard key (e.g. `"Enter"`) |
+| `set_extra_http_headers` | Inject HTTP headers for all subsequent requests (e.g. `Authorization: Bearer <token>`) |
+| `evaluate` | Execute JavaScript in the browser context (e.g. `localStorage.setItem(...)`) |
+
+### Recording navigation steps
+
+Use **Playwright Codegen** to record navigation steps automatically:
+
+```bash
+playwright codegen https://example.com/login
+```
+
+This opens a browser and records your interactions as Python code. Translate the relevant lines into YAML actions for your config file.
 
 ---
 
@@ -121,7 +234,7 @@ python promptmap.py
 | **Home** | Navigate to Manual Scan, Agent Scan, Settings, or Results |
 | **Manual Scan** | Enter an objective, pick an attack method, and run |
 | **Agent Scan** | Enter an objective; the Attack Agent autonomously selects attacks |
-| **Settings** | Configure endpoint, LLM names, and body template |
+| **Settings** | Select target type (HTTP API / Web Browser), configure endpoint or browser config path, and set LLM names |
 | **Results** | Review accumulated results for the current session |
 
 ### CLI
@@ -134,7 +247,7 @@ python promptmap.py --cli
 |---|---|
 | `manual` | Select test categories, attack methods, and converters interactively |
 | `agent` | Enter an objective and let the Attack Agent run autonomously |
-| `setting` | View and update configuration |
+| `setting` | View and update configuration (target type, endpoint / browser config, LLM names) |
 | `exit` | Exit the shell |
 
 ---
@@ -204,6 +317,8 @@ An attack is marked **achieved** when the normalized score ≥ 0.7 (score ≥ 7/
 promptmap/
 ├── promptmap.py                 Entry point (TUI default; --cli for shell mode)
 ├── requirements.txt
+├── examples/
+│   └── browser_target_example.yaml  Annotated browser target config reference
 ├── config/
 │   └── mapping.yaml             Maps test categories to attack methods
 ├── attacks/
@@ -226,12 +341,14 @@ promptmap/
 ├── engine/
 │   ├── context.py               AttackContext dataclass
 │   ├── base_attack.py
-│   ├── base_target.py
+│   ├── base_target.py           TargetAdapter ABC (send / close)
 │   ├── base_scorer.py
 │   ├── events.py                ProgressEvent system (TUI/CLI output)
 │   └── models.py                AttackResult, Message, ScorerResult
 ├── targets/
 │   ├── http_target.py           HTTPTargetAdapter (httpx)
+│   ├── playwright_target.py     PlaywrightTargetAdapter (browser automation)
+│   ├── browser_config.py        BrowserTargetConfig dataclasses + YAML loader
 │   └── openai_target.py         OpenAITargetAdapter (openai)
 ├── scorers/
 │   └── llm_judge.py             LLMJudgeScorer

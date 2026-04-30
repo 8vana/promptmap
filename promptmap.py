@@ -36,9 +36,11 @@ class PromptMapInteractiveShell(cmd.Cmd):
     config_file = os.path.expanduser("~/.promptmap_config.json")
 
     settings = {
+        "target_type": "http",
         "api_endpoint": "",
         "body_template": '{"text": "{PROMPT}"}',
         "response_key": "text",
+        "browser_config_path": "",
         "adv_llm_name": "",
         "score_llm_name": "",
     }
@@ -80,11 +82,17 @@ class PromptMapInteractiveShell(cmd.Cmd):
     def _build_context(self, converter_instances=None) -> AttackContext:
         s = self.settings
 
-        objective_target = HTTPTargetAdapter(
-            endpoint=s["api_endpoint"],
-            body_template=json.loads(s["body_template"]),
-            response_key=s["response_key"],
-        )
+        if s.get("target_type") == "browser":
+            from targets.browser_config import load_browser_config
+            from targets.playwright_target import PlaywrightTargetAdapter
+            cfg = load_browser_config(s["browser_config_path"])
+            objective_target = PlaywrightTargetAdapter(cfg)
+        else:
+            objective_target = HTTPTargetAdapter(
+                endpoint=s["api_endpoint"],
+                body_template=json.loads(s["body_template"]),
+                response_key=s["response_key"],
+            )
         adversarial_target = OpenAITargetAdapter(
             model=s["adv_llm_name"],
             api_key=s["adv_llm_api_key"],
@@ -114,13 +122,18 @@ class PromptMapInteractiveShell(cmd.Cmd):
         )
 
     def _validate_settings(self) -> bool:
+        s = self.settings
         required = {
-            "api_endpoint":    self.settings.get("api_endpoint"),
-            "adv_llm_name":    self.settings.get("adv_llm_name"),
-            "adv_llm_api_key": self.settings.get("adv_llm_api_key"),
-            "score_llm_name":  self.settings.get("score_llm_name"),
-            "score_llm_api_key": self.settings.get("score_llm_api_key"),
+            "adv_llm_name":      s.get("adv_llm_name"),
+            "adv_llm_api_key":   s.get("adv_llm_api_key"),
+            "score_llm_name":    s.get("score_llm_name"),
+            "score_llm_api_key": s.get("score_llm_api_key"),
         }
+        if s.get("target_type") == "browser":
+            required["browser_config_path"] = s.get("browser_config_path")
+        else:
+            required["api_endpoint"] = s.get("api_endpoint")
+
         missing = [k for k, v in required.items() if not v]
         if missing:
             print("The following settings are missing:")
@@ -208,6 +221,7 @@ class PromptMapInteractiveShell(cmd.Cmd):
             print(f"Session summary: {summary['achieved']}/{summary['total']} objectives achieved "
                   f"({summary['rate']:.0%})")
             print(f"{'='*60}{Style.RESET_ALL}")
+            await ctx.target.close()
 
         try:
             asyncio.run(run_all())
@@ -258,12 +272,17 @@ class PromptMapInteractiveShell(cmd.Cmd):
     # setting command
     # ------------------------------------------------------------------
     def do_setting(self, arg):
-        """Configure API endpoint, LLM names, body template and response key."""
+        """Configure target type, LLM names and connection settings."""
         s = self.settings
+        target_type = s.get("target_type", "http")
         print("Current settings:")
-        print(f"  Target API Endpoint : {s.get('api_endpoint', '(not set)')}")
-        print(f"  Body Template       : {s.get('body_template', '(not set)')}")
-        print(f"  Response Key        : {s.get('response_key', '(not set)')}")
+        print(f"  Target Type         : {target_type}")
+        if target_type == "browser":
+            print(f"  Browser Config Path : {s.get('browser_config_path', '(not set)')}")
+        else:
+            print(f"  Target API Endpoint : {s.get('api_endpoint', '(not set)')}")
+            print(f"  Body Template       : {s.get('body_template', '(not set)')}")
+            print(f"  Response Key        : {s.get('response_key', '(not set)')}")
         print(f"  Adversarial LLM     : {s.get('adv_llm_name', '(not set)')}")
         print(f"  Score LLM           : {s.get('score_llm_name', '(not set)')}")
         print("-" * 40)
@@ -275,20 +294,45 @@ class PromptMapInteractiveShell(cmd.Cmd):
             print("Cancelled.")
             return
 
-        answers = inquirer.prompt([
-            inquirer.Text("api_endpoint",  message="Target API endpoint",
-                          default=s.get("api_endpoint", "")),
-            inquirer.Text("body_template", message='Request body template (use {PROMPT} as placeholder)',
-                          default=s.get("body_template", '{"text": "{PROMPT}"}')),
-            inquirer.Text("response_key",  message="JSON key to extract response",
-                          default=s.get("response_key", "text")),
-            inquirer.Text("adv_llm_name",  message="Adversarial LLM name (e.g. gpt-4o-mini)",
+        type_answer = inquirer.prompt([
+            inquirer.List(
+                "target_type",
+                message="Target type",
+                choices=["http", "browser"],
+                default=target_type,
+            )
+        ])
+        new_type = type_answer.get("target_type", "http")
+
+        if new_type == "browser":
+            target_answers = inquirer.prompt([
+                inquirer.Text(
+                    "browser_config_path",
+                    message="Browser config YAML path",
+                    default=s.get("browser_config_path", ""),
+                ),
+            ])
+        else:
+            target_answers = inquirer.prompt([
+                inquirer.Text("api_endpoint",  message="Target API endpoint",
+                              default=s.get("api_endpoint", "")),
+                inquirer.Text("body_template", message='Request body template (use {PROMPT} as placeholder)',
+                              default=s.get("body_template", '{"text": "{PROMPT}"}')),
+                inquirer.Text("response_key",  message="JSON key to extract response",
+                              default=s.get("response_key", "text")),
+            ])
+
+        llm_answers = inquirer.prompt([
+            inquirer.Text("adv_llm_name",   message="Adversarial LLM name (e.g. gpt-4o-mini)",
                           default=s.get("adv_llm_name", "")),
             inquirer.Text("score_llm_name", message="Score LLM name (e.g. gpt-4o-mini)",
                           default=s.get("score_llm_name", "")),
         ])
-        if answers:
-            self.settings.update(answers)
+
+        if target_answers and llm_answers:
+            self.settings.update({"target_type": new_type})
+            self.settings.update(target_answers)
+            self.settings.update(llm_answers)
             self.save_settings()
 
     # ------------------------------------------------------------------

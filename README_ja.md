@@ -38,7 +38,7 @@ PromptMap は 2 つのインターフェースを提供します。
 PromptMapApp (TUI) / PromptMapInteractiveShell (CLI)
 │
 └─ AttackContext
-       ├─ target              TargetAdapter         ← テスト対象の AI システム（HTTP エンドポイント）
+       ├─ target              TargetAdapter         ← テスト対象の AI システム
        ├─ adversarial_target  OpenAITargetAdapter   ← 攻撃プロンプト生成 LLM
        ├─ scorer              LLMJudgeScorer        ← LLM-as-a-Judge（1〜10 段階スコア）
        ├─ converters          list[BaseConverter]   ← プロンプト難読化パイプライン（任意）
@@ -46,8 +46,9 @@ PromptMapApp (TUI) / PromptMapInteractiveShell (CLI)
        └─ available_attacks   dict[str, BaseAttack]
 
 ターゲット
-  ├─ HTTPTargetAdapter      任意の JSON HTTP エンドポイントへ POST
-  └─ OpenAITargetAdapter    OpenAI 互換チャット API（会話履歴を管理）
+  ├─ HTTPTargetAdapter        任意の JSON HTTP エンドポイントへ POST
+  ├─ PlaywrightTargetAdapter  ブラウザ自動化 — Web に組み込まれた LLM チャット UI を操作
+  └─ OpenAITargetAdapter      OpenAI 互換チャット API（会話履歴を管理）
 
 コンバーター（24 種、stdlib のみ・外部依存なし）
   エンコード  : Base64, Binary, TextToHex, Url, ROT13, Caesar, Atbash
@@ -63,7 +64,7 @@ PromptMapApp (TUI) / PromptMapInteractiveShell (CLI)
 
 - Python 3.12 以上
 - 攻撃者 LLM およびスコアラー用の **OpenAI 互換 API エンドポイント**（例: GPT-4o-mini）
-- テスト対象の AI システムの HTTP JSON エンドポイント
+- テスト対象の AI システム �� **HTTP JSON エンドポイント**または **Web ブラウザ上の LLM チャット UI**（ブラウザターゲット）
 
 ### 依存関係のインストール
 
@@ -79,6 +80,21 @@ pillow
 textual
 httpx
 openai
+playwright
+```
+
+#### ブラウザターゲットを使用する場合の追加セットアップ
+
+Python パッケージのインストール後、Playwright のブラウザバイナリをインストールしてください。
+
+```bash
+playwright install chromium
+```
+
+全ブラウザ（chromium / firefox / webkit）をインストールする場合：
+
+```bash
+playwright install
 ```
 
 ---
@@ -96,15 +112,112 @@ export SCORE_LLM_API_KEY="sk-..."  # スコアラー LLM 用 API キー
 
 ### その他の設定（`~/.promptmap_config.json` に保存）
 
+TUI の **Settings** 画面、または CLI の `setting` コマンドからインタラクティブに設定できます。
+
+#### HTTP API ターゲット
+
 | 項目 | 説明 | 例 |
 |---|---|---|
+| `target_type` | ターゲット種別 | `http` |
 | `api_endpoint` | テスト対象アプリの POST URL | `http://localhost:8000/chat` |
 | `body_template` | `{PROMPT}` プレースホルダーを含む JSON ボディテンプレート | `{"text": "{PROMPT}"}` |
 | `response_key` | レスポンスを抽出する JSON キー | `text` |
 | `adv_llm_name` | 攻撃者 LLM のモデル名 | `gpt-4o-mini` |
 | `score_llm_name` | スコアラー LLM のモデル名 | `gpt-4o-mini` |
 
-TUI の **Settings** 画面、または CLI の `setting` コマンドからインタラクティブに設定できます。
+#### ブラウザターゲット
+
+| 項目 | 説明 | 例 |
+|---|---|---|
+| `target_type` | ターゲット種別 | `browser` |
+| `browser_config_path` | ブラウザターゲット YAML 設定ファイルのパス | `/path/to/browser_target.yaml` |
+| `adv_llm_name` | 攻撃者 LLM のモデル名 | `gpt-4o-mini` |
+| `score_llm_name` | スコアラー LLM のモデル名 | `gpt-4o-mini` |
+
+---
+
+## ブラウザターゲット
+
+ブラウザターゲットは、Web アプリケーションに組み込まれた LLM インターフェース — ログインや複数の画面遷移を経てたどり着くチャットボットなど — に対してテストを実施できる機能です。
+
+### 動作の仕組み
+
+1. PromptMap が Playwright ブラウザ（デフォルト: Chromium）を起動します。
+2. ブラウザが YAML 設定に定義されたナビゲーションステップ（ログイン・画面遷移など）を実行します。
+3. 各攻撃プロンプトについて、チャット入力欄にプロンプトを入力して送信し、DOM に AI の応答が現れるまで待機します。
+4. 応答を抽出してスコアリングします（他のターゲットと同じ流れ）。
+
+### 応答の検出方式
+
+PromptMap は HTTP レイヤーではなく DOM を監視するため、同期・非同期どちらの応答パターンにも透過的に対応します。
+
+| パターン | 例 | 推奨ストラテジー |
+|---|---|---|
+| 同期レスポンス | プロンプト送信と同じ HTTP リクエストで応答が返る | `new_element` |
+| 非同期レスポンス | 別途ポーリング / WebSocket / SSE で応答が届く | `new_element` |
+| ストリーミング / タイプライター | 応答が文字単位で逐次更新される | `content_stable` |
+
+### セッション管理
+
+Cookie ベースのセッションや JavaScript が管理する JWT は実ブラウザが自動処理します。事前に取得したトークンを手動で注入する必要がある場合は、`set_extra_http_headers` または `evaluate` ナビゲーションアクションを使用し���ください。
+
+### ブラウザ設定 YAML
+
+チャット画面へのナビゲーション方法と UI の操作方法を記述した YAML ファイルを作成します。詳細は [`examples/browser_target_example.yaml`](examples/browser_target_example.yaml) の注釈付きリファレンスを参照してください。
+
+```yaml
+browser: chromium   # chromium | firefox | webkit
+headless: true
+
+navigation:
+  - action: goto
+    url: "https://example.com/login"
+  - action: fill
+    selector: "#username"
+    value: "your-username"
+  - action: fill
+    selector: "#password"
+    value: "your-password"
+  - action: click
+    selector: "button[type='submit']"
+  - action: wait_for_url
+    pattern: "**/dashboard"
+  - action: click
+    selector: "a[href='/chat']"
+  - action: wait_for_selector
+    selector: "#chat-input"
+
+chat:
+  input_selector: "#chat-input"
+  send_selector: "#send-button"        # 省略すると Enter キーを押す
+  response_selector: ".message.assistant"
+  response_wait_strategy: "new_element"  # または "content_stable"
+  response_timeout: 30000
+```
+
+### サポートするナビゲーションアクション
+
+| アクション | 説明 |
+|---|---|
+| `goto` | URL へ遷移 |
+| `fill` | フォームフィールドにテキストを入力 |
+| `click` | 要素をクリック |
+| `wait_for_selector` | 要素が DOM に出現するま���待機 |
+| `wait_for_url` | URL がグロブパターンに一致するまで待機 |
+| `select` | `<select>` ドロップダウンの選択肢を選ぶ |
+| `press` | キーボードキーを押す（例: `"Enter"`） |
+| `set_extra_http_headers` | 以降のリクエストに HTTP ヘッダを付与（例: `Authorization: Bearer <token>`） |
+| `evaluate` | ブラウザコンテキストで JavaScript を実行（例: `localStorage.setItem(...)`） |
+
+### ナビゲーションステップの記録
+
+**Playwright Codegen** を使うと、ナビゲーションステップ���自動的に記録できます。
+
+```bash
+playwright codegen https://example.com/login
+```
+
+ブラウザが起動し、操作内容が Python コードとして記録され���す。該当する行を YAML アクション形式に変換して設定ファイルに記述してください。
 
 ---
 
@@ -121,7 +234,7 @@ python promptmap.py
 | **Home** | Manual Scan / Agent Scan / Settings / Results へ遷移 |
 | **Manual Scan** | 目的を入力し攻撃手法を選択して実行 |
 | **Agent Scan** | 目的を入力するだけで Attack Agent が攻撃を自律的に選択・実行 |
-| **Settings** | エンドポイント・LLM 名・ボディテンプレートを設定 |
+| **Settings** | ターゲット種別（HTTP API / Web Browser）を選択し、エンドポイントまたはブラウザ設定ファイルのパスと LLM 名を設定 |
 | **Results** | 現在のセッションの結果を確認 |
 
 ### CLI
@@ -134,7 +247,7 @@ python promptmap.py --cli
 |---|---|
 | `manual` | テストカテゴリ・攻撃手法・コンバーターをインタラクティブに選択して実行 |
 | `agent` | 目的を入力して Attack Agent を起動し自律実行 |
-| `setting` | 設定の確認・変更 |
+| `setting` | 設定の確認・変更（ターゲット種別・エンドポイントまたはブラウザ設定・LLM 名） |
 | `exit` | シェルを終了 |
 
 ---
@@ -204,6 +317,8 @@ python promptmap.py --cli
 promptmap/
 ├── promptmap.py                 エントリーポイント（デフォルト TUI、--cli でシェルモード）
 ├── requirements.txt
+├── examples/
+│   └── browser_target_example.yaml  注釈付きブラウザターゲット設定リファレンス
 ├── config/
 │   └── mapping.yaml             テストカテゴリと攻撃手法のマッピング
 ├── attacks/
@@ -226,12 +341,14 @@ promptmap/
 ├── engine/
 │   ├── context.py               AttackContext データクラス
 │   ├── base_attack.py
-│   ├── base_target.py
+│   ├── base_target.py           TargetAdapter 抽象基底クラス（send / close）
 │   ├── base_scorer.py
 │   ├── events.py                ProgressEvent システム（TUI/CLI への出力）
 │   └── models.py                AttackResult, Message, ScorerResult
 ├── targets/
 │   ├── http_target.py           HTTPTargetAdapter（httpx）
+│   ├── playwright_target.py     PlaywrightTargetAdapter（ブラウザ自動化）
+│   ├── browser_config.py        BrowserTargetConfig データクラス + YAML ローダー
 │   └── openai_target.py         OpenAITargetAdapter（openai）
 ├── scorers/
 │   └── llm_judge.py             LLMJudgeScorer

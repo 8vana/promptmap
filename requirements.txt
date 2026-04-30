@@ -3,3 +3,4 @@ colorama
 pillow
 textual
 httpx
+playwright
