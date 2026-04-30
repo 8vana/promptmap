@@ -4,3 +4,7 @@ pillow
 textual
 httpx
 playwright
+openai
+anthropic
+google-genai
+boto3

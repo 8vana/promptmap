@@ -10,7 +10,7 @@ from textual.binding import Binding
 from engine.context import AttackContext
 from memory.session_memory import SessionMemory
 from targets.http_target import HTTPTargetAdapter
-from targets.openai_target import OpenAITargetAdapter
+from targets.factory import create_target_adapter, get_available_providers, get_missing_env_vars, PROVIDER_LABELS
 from scorers.llm_judge import LLMJudgeScorer
 from attacks.single_pi_attack import SinglePIAttack
 from attacks.multi_crescendo_attack import CrescendoAttack
@@ -21,11 +21,13 @@ from attacks.multi_chunked_request_attack import ChunkedRequestAttack
 _CONFIG_FILE = os.path.expanduser("~/.promptmap_config.json")
 
 _DEFAULT_SETTINGS: dict = {
-    "api_endpoint":   "",
-    "body_template":  '{"text": "{PROMPT}"}',
-    "response_key":   "text",
-    "adv_llm_name":   "",
-    "score_llm_name": "",
+    "api_endpoint":       "",
+    "body_template":      '{"text": "{PROMPT}"}',
+    "response_key":       "text",
+    "adv_llm_provider":   "openai",
+    "adv_llm_name":       "",
+    "score_llm_provider": "openai",
+    "score_llm_name":     "",
 }
 
 
@@ -71,33 +73,51 @@ class PromptMapApp(App):
                     data.update(json.load(f))
             except Exception:
                 pass
-        # Always pull API keys from env (never persist them to disk)
-        data["adv_llm_api_key"]   = os.getenv("ADV_LLM_API_KEY",   data.get("adv_llm_api_key",   ""))
-        data["score_llm_api_key"] = os.getenv("SCORE_LLM_API_KEY", data.get("score_llm_api_key", ""))
         return data
 
     def _save_settings(self) -> None:
-        safe = {k: v for k, v in self._settings.items()
-                if k not in ("adv_llm_api_key", "score_llm_api_key")}
         try:
             with open(_CONFIG_FILE, "w") as f:
-                json.dump(safe, f, indent=2)
+                json.dump(self._settings, f, indent=2)
         except Exception:
             pass
 
     def settings_ready(self) -> bool:
         s = self._settings
+        availability = get_available_providers()
+
         if s.get("target_type") == "browser":
             target_ready = bool(s.get("browser_config_path"))
         else:
             target_ready = bool(s.get("api_endpoint"))
+
+        adv_provider   = s.get("adv_llm_provider", "openai")
+        score_provider = s.get("score_llm_provider", "openai")
+
         return all([
             target_ready,
             s.get("adv_llm_name"),
-            s.get("adv_llm_api_key"),
+            availability.get(adv_provider, False),
             s.get("score_llm_name"),
-            s.get("score_llm_api_key"),
+            availability.get(score_provider, False),
         ])
+
+    def get_provider_warnings(self) -> list[str]:
+        """Return warning messages for providers whose env vars are missing."""
+        s = self._settings
+        warnings: list[str] = []
+        for role, provider_key in [("Adversarial LLM", "adv_llm_provider"),
+                                    ("Score LLM",       "score_llm_provider")]:
+            provider = s.get(provider_key, "openai")
+            missing = get_missing_env_vars(provider)
+            if missing:
+                label = PROVIDER_LABELS.get(provider, provider)
+                warnings.append(
+                    f"{role} ({label}): set {' or '.join(missing)}"
+                    if provider == "gemini" else
+                    f"{role} ({label}): set {', '.join(missing)}"
+                )
+        return warnings
 
     # ------------------------------------------------------------------ #
     #  AttackContext factory                                               #
@@ -117,21 +137,22 @@ class PromptMapApp(App):
                 body_template=json.loads(s.get("body_template", '{"text": "{PROMPT}"}')),
                 response_key=s.get("response_key", "text"),
             )
-        adversarial_target = OpenAITargetAdapter(
+
+        adversarial_target = create_target_adapter(
+            provider=s["adv_llm_provider"],
             model=s["adv_llm_name"],
-            api_key=s["adv_llm_api_key"],
         )
-        score_llm = OpenAITargetAdapter(
+        score_llm = create_target_adapter(
+            provider=s["score_llm_provider"],
             model=s["score_llm_name"],
-            api_key=s["score_llm_api_key"],
         )
         scorer = LLMJudgeScorer(judge_target=score_llm)
 
         available_attacks: dict = {
-            "Single_PI_Attack":          SinglePIAttack(),
-            "Multi_Crescendo_Attack":    CrescendoAttack(),
-            "Multi_PAIR_Attack":         PAIRAttack(),
-            "Multi_TAP_Attack":          TAPAttack(),
+            "Single_PI_Attack":             SinglePIAttack(),
+            "Multi_Crescendo_Attack":       CrescendoAttack(),
+            "Multi_PAIR_Attack":            PAIRAttack(),
+            "Multi_TAP_Attack":             TAPAttack(),
             "Multi_Chunked_Request_Attack": ChunkedRequestAttack(),
         }
 
