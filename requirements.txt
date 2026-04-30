@@ -1,4 +1,3 @@
-pyrit
 inquirer
 colorama
 pillow

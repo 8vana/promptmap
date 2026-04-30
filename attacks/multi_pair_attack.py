@@ -40,6 +40,7 @@ class PAIRAttack(BaseAttack):
     """
     PAIR (Prompt Automatic Iterative Refinement) attack.
     Reference: Chao et al. 2023 – "Jailbreaking Black Box LLMs in Twenty Queries"
+    https://arxiv.org/abs/2310.08419
     """
 
     def __init__(self, max_iterations: int = 20, threshold: float = 0.7):
@@ -51,9 +52,9 @@ class PAIRAttack(BaseAttack):
         threshold = kwargs.get("threshold", self.threshold)
 
         adv_conv_id = str(uuid4())
-        obj_conv_id = str(uuid4())
         conversation: list[Message] = []
         best_score = 0.0
+        last_score = 0.0
         last_rationale = ""
 
         system_prompt = _ATTACKER_SYSTEM_PROMPT.format(objective=objective)
@@ -67,7 +68,7 @@ class PAIRAttack(BaseAttack):
                 if i == 1
                 else _FEEDBACK_TEMPLATE.format(
                     response=conversation[-1].content,
-                    score=best_score,
+                    score=last_score,
                     rationale=last_rationale,
                 )
             )
@@ -81,7 +82,7 @@ class PAIRAttack(BaseAttack):
 
             await ctx.emit(ProgressEvent(EVT_PROMPT, turn=i, data={"text": converted}))
 
-            response = await ctx.target.send(converted, obj_conv_id)
+            response = await ctx.target.send(converted, str(uuid4()))
 
             await ctx.emit(ProgressEvent(EVT_RESPONSE, turn=i, data={"text": response}))
 
@@ -89,6 +90,7 @@ class PAIRAttack(BaseAttack):
             conversation.append(Message(role="assistant", content=response))
 
             score_result = await ctx.scorer.score(response, objective)
+            last_score = score_result.score
             best_score = max(best_score, score_result.score)
             last_rationale = score_result.rationale
 
