@@ -18,7 +18,10 @@ from converters.instantiate_converters import instantiate_converters
 from engine.context import AttackContext
 from memory.session_memory import SessionMemory
 from targets.http_target import HTTPTargetAdapter
-from targets.openai_target import OpenAITargetAdapter
+from targets.factory import (
+    create_target_adapter, get_available_providers,
+    get_missing_env_vars, PROVIDER_LABELS,
+)
 from scorers.llm_judge import LLMJudgeScorer
 
 from attacks.single_pi_attack import SinglePIAttack
@@ -36,13 +39,15 @@ class PromptMapInteractiveShell(cmd.Cmd):
     config_file = os.path.expanduser("~/.promptmap_config.json")
 
     settings = {
-        "target_type": "http",
-        "api_endpoint": "",
-        "body_template": '{"text": "{PROMPT}"}',
-        "response_key": "text",
+        "target_type":       "http",
+        "api_endpoint":      "",
+        "body_template":     '{"text": "{PROMPT}"}',
+        "response_key":      "text",
         "browser_config_path": "",
-        "adv_llm_name": "",
-        "score_llm_name": "",
+        "adv_llm_provider":  "openai",
+        "adv_llm_name":      "",
+        "score_llm_provider": "openai",
+        "score_llm_name":    "",
     }
 
     def __init__(self):
@@ -58,20 +63,20 @@ class PromptMapInteractiveShell(cmd.Cmd):
             except Exception as e:
                 print(f"Failed to load settings: {e}")
 
-        self.settings["adv_llm_api_key"] = os.getenv("ADV_LLM_API_KEY", "")
-        if not self.settings["adv_llm_api_key"]:
-            print("API Key for adversarial LLM is not set. Please set 'ADV_LLM_API_KEY'.")
+        availability = get_available_providers()
+        adv_provider = self.settings.get("adv_llm_provider", "openai")
+        score_provider = self.settings.get("score_llm_provider", "openai")
 
-        self.settings["score_llm_api_key"] = os.getenv("SCORE_LLM_API_KEY", "")
-        if not self.settings["score_llm_api_key"]:
-            print("API Key for score LLM is not set. Please set 'SCORE_LLM_API_KEY'.")
+        for role, provider in [("Adversarial LLM", adv_provider), ("Score LLM", score_provider)]:
+            if not availability.get(provider, False):
+                missing = get_missing_env_vars(provider)
+                print(f"[!] {role} provider '{PROVIDER_LABELS.get(provider, provider)}' "
+                      f"requires env var(s): {', '.join(missing)}")
 
     def save_settings(self):
-        save_data = {k: v for k, v in self.settings.items()
-                     if k not in ("adv_llm_api_key", "score_llm_api_key")}
         try:
             with open(self.config_file, "w") as f:
-                json.dump(save_data, f, indent=2)
+                json.dump(self.settings, f, indent=2)
             print("Settings saved.")
         except Exception as e:
             print(f"Failed to save settings: {e}")
@@ -93,22 +98,23 @@ class PromptMapInteractiveShell(cmd.Cmd):
                 body_template=json.loads(s["body_template"]),
                 response_key=s["response_key"],
             )
-        adversarial_target = OpenAITargetAdapter(
+
+        adversarial_target = create_target_adapter(
+            provider=s["adv_llm_provider"],
             model=s["adv_llm_name"],
-            api_key=s["adv_llm_api_key"],
         )
-        score_llm = OpenAITargetAdapter(
+        score_llm = create_target_adapter(
+            provider=s["score_llm_provider"],
             model=s["score_llm_name"],
-            api_key=s["score_llm_api_key"],
         )
         scorer = LLMJudgeScorer(judge_target=score_llm)
         memory = SessionMemory()
 
         available_attacks = {
-            "Single_PI_Attack":          SinglePIAttack(),
-            "Multi_Crescendo_Attack":    CrescendoAttack(),
-            "Multi_PAIR_Attack":         PAIRAttack(),
-            "Multi_TAP_Attack":          TAPAttack(),
+            "Single_PI_Attack":             SinglePIAttack(),
+            "Multi_Crescendo_Attack":       CrescendoAttack(),
+            "Multi_PAIR_Attack":            PAIRAttack(),
+            "Multi_TAP_Attack":             TAPAttack(),
             "Multi_Chunked_Request_Attack": ChunkedRequestAttack(),
         }
 
@@ -123,18 +129,28 @@ class PromptMapInteractiveShell(cmd.Cmd):
 
     def _validate_settings(self) -> bool:
         s = self.settings
-        required = {
-            "adv_llm_name":      s.get("adv_llm_name"),
-            "adv_llm_api_key":   s.get("adv_llm_api_key"),
-            "score_llm_name":    s.get("score_llm_name"),
-            "score_llm_api_key": s.get("score_llm_api_key"),
-        }
-        if s.get("target_type") == "browser":
-            required["browser_config_path"] = s.get("browser_config_path")
-        else:
-            required["api_endpoint"] = s.get("api_endpoint")
+        availability = get_available_providers()
 
-        missing = [k for k, v in required.items() if not v]
+        missing: list[str] = []
+
+        for role, provider_key, name_key in [
+            ("Adversarial LLM", "adv_llm_provider", "adv_llm_name"),
+            ("Score LLM",       "score_llm_provider", "score_llm_name"),
+        ]:
+            provider = s.get(provider_key, "")
+            if not availability.get(provider, False):
+                for v in get_missing_env_vars(provider):
+                    missing.append(f"{v}  (required for {role}: {PROVIDER_LABELS.get(provider, provider)})")
+            if not s.get(name_key):
+                missing.append(name_key)
+
+        if s.get("target_type") == "browser":
+            if not s.get("browser_config_path"):
+                missing.append("browser_config_path")
+        else:
+            if not s.get("api_endpoint"):
+                missing.append("api_endpoint")
+
         if missing:
             print("The following settings are missing:")
             for m in missing:
@@ -272,19 +288,21 @@ class PromptMapInteractiveShell(cmd.Cmd):
     # setting command
     # ------------------------------------------------------------------
     def do_setting(self, arg):
-        """Configure target type, LLM names and connection settings."""
+        """Configure target type, LLM provider/model and connection settings."""
         s = self.settings
         target_type = s.get("target_type", "http")
+        availability = get_available_providers()
+
         print("Current settings:")
-        print(f"  Target Type         : {target_type}")
+        print(f"  Target Type          : {target_type}")
         if target_type == "browser":
-            print(f"  Browser Config Path : {s.get('browser_config_path', '(not set)')}")
+            print(f"  Browser Config Path  : {s.get('browser_config_path', '(not set)')}")
         else:
-            print(f"  Target API Endpoint : {s.get('api_endpoint', '(not set)')}")
-            print(f"  Body Template       : {s.get('body_template', '(not set)')}")
-            print(f"  Response Key        : {s.get('response_key', '(not set)')}")
-        print(f"  Adversarial LLM     : {s.get('adv_llm_name', '(not set)')}")
-        print(f"  Score LLM           : {s.get('score_llm_name', '(not set)')}")
+            print(f"  Target API Endpoint  : {s.get('api_endpoint', '(not set)')}")
+            print(f"  Body Template        : {s.get('body_template', '(not set)')}")
+            print(f"  Response Key         : {s.get('response_key', '(not set)')}")
+        print(f"  Adversarial LLM      : [{s.get('adv_llm_provider', 'openai')}] {s.get('adv_llm_name', '(not set)')}")
+        print(f"  Score LLM            : [{s.get('score_llm_provider', 'openai')}] {s.get('score_llm_name', '(not set)')}")
         print("-" * 40)
 
         confirm = inquirer.prompt([
@@ -322,18 +340,48 @@ class PromptMapInteractiveShell(cmd.Cmd):
                               default=s.get("response_key", "text")),
             ])
 
+        # Build provider choices with availability indicators
+        provider_choices = [
+            f"{PROVIDER_LABELS[p]}  {'[available]' if availability[p] else '[unavailable: ' + ', '.join(get_missing_env_vars(p)) + ']'}"
+            for p in PROVIDER_LABELS
+        ]
+        provider_keys = list(PROVIDER_LABELS.keys())
+
+        adv_idx = provider_keys.index(s.get("adv_llm_provider", "openai"))
+        adv_provider_answer = inquirer.prompt([
+            inquirer.List("adv_provider", message="Adversarial LLM provider",
+                          choices=provider_choices, default=provider_choices[adv_idx])
+        ])
+        adv_provider = provider_keys[provider_choices.index(adv_provider_answer["adv_provider"])]
+
+        score_idx = provider_keys.index(s.get("score_llm_provider", "openai"))
+        score_provider_answer = inquirer.prompt([
+            inquirer.List("score_provider", message="Score LLM provider",
+                          choices=provider_choices, default=provider_choices[score_idx])
+        ])
+        score_provider = provider_keys[provider_choices.index(score_provider_answer["score_provider"])]
+
         llm_answers = inquirer.prompt([
-            inquirer.Text("adv_llm_name",   message="Adversarial LLM name (e.g. gpt-4o-mini)",
+            inquirer.Text("adv_llm_name",   message=f"Adversarial LLM model name",
                           default=s.get("adv_llm_name", "")),
-            inquirer.Text("score_llm_name", message="Score LLM name (e.g. gpt-4o-mini)",
+            inquirer.Text("score_llm_name", message=f"Score LLM model name",
                           default=s.get("score_llm_name", "")),
         ])
 
         if target_answers and llm_answers:
             self.settings.update({"target_type": new_type})
             self.settings.update(target_answers)
+            self.settings["adv_llm_provider"]  = adv_provider
+            self.settings["score_llm_provider"] = score_provider
             self.settings.update(llm_answers)
             self.save_settings()
+
+        # Warn if selected provider is unavailable
+        for role, provider in [("Adversarial LLM", adv_provider), ("Score LLM", score_provider)]:
+            if not availability.get(provider, False):
+                missing = get_missing_env_vars(provider)
+                print(f"[!] Warning: {role} provider '{PROVIDER_LABELS[provider]}' "
+                      f"requires env var(s): {', '.join(missing)}")
 
     # ------------------------------------------------------------------
     # exit / EOF

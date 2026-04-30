@@ -163,4 +163,4 @@ cython_debug/
 .promptmap_config.json
 promptmap_config.json
 promptmap/
-.idea/
+.idea/setup_env.local.sh

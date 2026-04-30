@@ -4,6 +4,18 @@
 
 **プロンプトインジェクション・ジェイルブレイクテスト用 AI レッドチーミングツール**
 
+[![Python](https://img.shields.io/badge/Python-3.12%2B-blue?logo=python&logoColor=white)](https://www.python.org/)
+[![License](https://img.shields.io/github/license/8vana/promptmap)](LICENSE)
+[![Stars](https://img.shields.io/github/stars/8vana/promptmap?style=flat)](https://github.com/8vana/promptmap/stargazers)
+[![Forks](https://img.shields.io/github/forks/8vana/promptmap?style=flat)](https://github.com/8vana/promptmap/network/members)
+[![Last Commit](https://img.shields.io/github/last-commit/8vana/promptmap)](https://github.com/8vana/promptmap/commits/main)
+
+[![OpenAI](https://img.shields.io/badge/OpenAI-supported-brightgreen?logo=openai&logoColor=white)](https://platform.openai.com/)
+[![Anthropic](https://img.shields.io/badge/Anthropic-supported-brightgreen)](https://www.anthropic.com/)
+[![Gemini](https://img.shields.io/badge/Google%20Gemini-supported-brightgreen?logo=google&logoColor=white)](https://ai.google.dev/)
+[![Amazon Bedrock](https://img.shields.io/badge/Amazon%20Bedrock-supported-brightgreen?logo=amazonaws&logoColor=white)](https://aws.amazon.com/bedrock/)
+[![Ollama](https://img.shields.io/badge/Ollama-supported-brightgreen)](https://ollama.com/)
+
 > English version: [README (English)](./README.md)
 
 ---

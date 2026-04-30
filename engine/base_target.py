@@ -1,5 +1,7 @@
 from abc import ABC, abstractmethod
 
+from engine.tool_call import ToolCallResponse
+
 
 class TargetAdapter(ABC):
     @abstractmethod
@@ -13,3 +15,10 @@ class TargetAdapter(ABC):
 
     async def close(self) -> None:
         """Release any resources held by the target. No-op for stateless targets."""
+
+    async def chat_with_tools(
+        self, messages: list[dict], tools: list[dict]
+    ) -> ToolCallResponse:
+        raise NotImplementedError(
+            f"{type(self).__name__} does not support tool calling."
+        )

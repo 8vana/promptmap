@@ -3,7 +3,6 @@ import json
 from engine.context import AttackContext
 from engine.events import ProgressEvent, EVT_INFO, EVT_AGENT_ACTION, EVT_AGENT_DONE, EVT_ERROR
 from engine.models import AttackResult
-from targets.openai_target import OpenAITargetAdapter
 
 _SYSTEM_PROMPT = """\
 You are an expert AI security researcher conducting an autonomous red-teaming assessment.
@@ -41,7 +40,7 @@ _FINISH_TOOL = {
 class AttackAgent:
     """
     Autonomous red-teaming agent.
-    Uses the adversarial LLM (via OpenAI tool-calling) to decide which attacks to run
+    Uses the adversarial LLM (via tool-calling) to decide which attacks to run
     and in what order, without human intervention.
     """
 
@@ -49,11 +48,6 @@ class AttackAgent:
         self.max_iterations = max_iterations
 
     async def run(self, ctx: AttackContext, objective: str) -> list[AttackResult]:
-        if not isinstance(ctx.adversarial_target, OpenAITargetAdapter):
-            raise TypeError(
-                "AttackAgent requires ctx.adversarial_target to be an OpenAITargetAdapter."
-            )
-
         tools = self._build_tools(ctx.available_attacks)
         tool_descriptions = "\n".join(
             f"  - {t['function']['name']}: {t['function']['description']}"
@@ -88,7 +82,9 @@ class AttackAgent:
             msg = response.choices[0]
 
             if msg.finish_reason == "stop" or not msg.message.tool_calls:
-                await ctx.emit(ProgressEvent(EVT_INFO, data={"text": "[Agent] No further tool calls — assessment complete."}))
+                await ctx.emit(ProgressEvent(EVT_INFO, data={
+                    "text": "[Agent] No further tool calls — assessment complete."
+                }))
                 break
 
             messages.append(msg.message.model_dump())
