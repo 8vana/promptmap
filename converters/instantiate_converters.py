@@ -1,36 +1,29 @@
-import importlib
 from typing import List
 
-from converters.base_converter import BaseConverter, PyRITConverterAdapter
+from converters.base_converter import BaseConverter
+from converters.native_converters import get_converter_class
 
 DEFAULT_CONVERTER_ARGS = {
     "RandomCapitalLettersConverter": {"percentage": 25.0},
-    "CaesarConverter": {"shift": 3},
-    "CharSwapGenerator": {"swap_probability": 0.1},
+    "CaesarConverter":               {"caesar_offset": 3},
+    "CharSwapGenerator":             {"word_swap_ratio": 0.1},
 }
 
 
 def instantiate_converters(names: List[str]) -> List[BaseConverter]:
-    """Instantiate PyRIT converters and wrap them as BaseConverter adapters."""
+    """Instantiate native converters by name and return as BaseConverter list."""
     instances: List[BaseConverter] = []
-    module = importlib.import_module("pyrit.prompt_converter")
 
     for name in names:
         if name == "None":
             break
 
-        try:
-            cls = getattr(module, name)
-        except AttributeError:
-            raise ValueError(f"Unknown converter: {name}")
-
+        cls = get_converter_class(name)
         kwargs = DEFAULT_CONVERTER_ARGS.get(name, {})
 
         try:
-            pyrit_instance = cls(**kwargs)
+            instances.append(cls(**kwargs))
         except TypeError as e:
             raise TypeError(f"Failed to instantiate {name} with args {kwargs}: {e}")
-
-        instances.append(PyRITConverterAdapter(pyrit_instance))
 
     return instances

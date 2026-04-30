@@ -5,10 +5,11 @@ from textual.widgets import Button, Footer, Header, Input, Label, RadioSet, Radi
 from textual.containers import Container, Horizontal
 
 _ATTACKS = [
-    ("Single_PI_Attack",         "Single PI Attack  — direct injection, one turn"),
-    ("Multi_Crescendo_Attack",   "Crescendo  — gradual escalation (multi-turn)"),
-    ("Multi_PAIR_Attack",        "PAIR  — iterative refinement with attacker LLM"),
-    ("Multi_Red_Teaming_Attack", "Red Teaming  — open-ended adversarial conversation"),
+    ("Single_PI_Attack",              "Single PI Attack  — direct injection, one turn"),
+    ("Multi_Crescendo_Attack",        "Crescendo  — gradual escalation (multi-turn)"),
+    ("Multi_PAIR_Attack",             "PAIR  — iterative refinement with attacker LLM"),
+    ("Multi_TAP_Attack",              "TAP  — tree search with pruning (multi-branch)"),
+    ("Multi_Chunked_Request_Attack",  "Chunked Request  — segment-by-segment extraction"),
 ]
 
 

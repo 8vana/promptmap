@@ -153,11 +153,7 @@ def print_result(result: AttackResult) -> None:
 # Internal helpers
 # ------------------------------------------------------------------
 def _pyrit_jailbreak_dir():
-    try:
-        from pyrit.common.path import DATASETS_PATH
-        return pathlib.Path(DATASETS_PATH) / "prompt_templates" / "jailbreak"
-    except ImportError:
-        return None
+    return pathlib.Path("datasets/builtin_jailbreaks")
 
 
 def _load_jailbreak_value(path: pathlib.Path) -> str:

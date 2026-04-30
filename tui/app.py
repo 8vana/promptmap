@@ -15,7 +15,8 @@ from scorers.llm_judge import LLMJudgeScorer
 from attacks.single_pi_attack import SinglePIAttack
 from attacks.multi_crescendo_attack import CrescendoAttack
 from attacks.multi_pair_attack import PAIRAttack
-from attacks.multi_red_teaming_attack import RedTeamingAttack
+from attacks.multi_tap_attack import TAPAttack
+from attacks.multi_chunked_request_attack import ChunkedRequestAttack
 
 _CONFIG_FILE = os.path.expanduser("~/.promptmap_config.json")
 
@@ -120,7 +121,8 @@ class PromptMapApp(App):
             "Single_PI_Attack":          SinglePIAttack(),
             "Multi_Crescendo_Attack":    CrescendoAttack(),
             "Multi_PAIR_Attack":         PAIRAttack(),
-            "Multi_Red_Teaming_Attack":  RedTeamingAttack(),
+            "Multi_TAP_Attack":          TAPAttack(),
+            "Multi_Chunked_Request_Attack": ChunkedRequestAttack(),
         }
 
         return AttackContext(
