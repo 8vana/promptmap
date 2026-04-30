@@ -10,3 +10,6 @@ class TargetAdapter(ABC):
 
     def reset_conversation(self, conversation_id: str) -> None:
         """Clear conversation history. No-op for stateless targets."""
+
+    async def close(self) -> None:
+        """Release any resources held by the target. No-op for stateless targets."""

@@ -87,8 +87,12 @@ class PromptMapApp(App):
 
     def settings_ready(self) -> bool:
         s = self._settings
+        if s.get("target_type") == "browser":
+            target_ready = bool(s.get("browser_config_path"))
+        else:
+            target_ready = bool(s.get("api_endpoint"))
         return all([
-            s.get("api_endpoint"),
+            target_ready,
             s.get("adv_llm_name"),
             s.get("adv_llm_api_key"),
             s.get("score_llm_name"),
@@ -102,11 +106,17 @@ class PromptMapApp(App):
     def build_context(self, converter_instances: list | None = None) -> AttackContext:
         s = self._settings
 
-        objective_target = HTTPTargetAdapter(
-            endpoint=s["api_endpoint"],
-            body_template=json.loads(s.get("body_template", '{"text": "{PROMPT}"}')),
-            response_key=s.get("response_key", "text"),
-        )
+        if s.get("target_type") == "browser":
+            from targets.browser_config import load_browser_config
+            from targets.playwright_target import PlaywrightTargetAdapter
+            cfg = load_browser_config(s["browser_config_path"])
+            objective_target = PlaywrightTargetAdapter(cfg)
+        else:
+            objective_target = HTTPTargetAdapter(
+                endpoint=s["api_endpoint"],
+                body_template=json.loads(s.get("body_template", '{"text": "{PROMPT}"}')),
+                response_key=s.get("response_key", "text"),
+            )
         adversarial_target = OpenAITargetAdapter(
             model=s["adv_llm_name"],
             api_key=s["adv_llm_api_key"],

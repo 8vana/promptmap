@@ -55,9 +55,11 @@ class HomeScreen(Screen):
     def _refresh_status(self) -> None:
         s = self.app.settings
         ready = "● Ready" if self.app.settings_ready() else "○ Not configured"
-        self.query_one("#lbl-target", Label).update(
-            f"Target   : {s.get('api_endpoint', '(not set)')}"
-        )
+        if s.get("target_type") == "browser":
+            target_display = f"[Browser] {s.get('browser_config_path', '(not set)')}"
+        else:
+            target_display = s.get("api_endpoint", "(not set)")
+        self.query_one("#lbl-target", Label).update(f"Target   : {target_display}")
         self.query_one("#lbl-adv",    Label).update(
             f"Adv LLM  : {s.get('adv_llm_name', '(not set)')}"
         )
