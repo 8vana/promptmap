@@ -25,3 +25,4 @@ class AttackResult:
     turns: int
     conversation: list = field(default_factory=list)  # list[Message]
     metadata: dict = field(default_factory=dict)
+    atlas_techniques: list = field(default_factory=list)  # list[str] MITRE ATLAS technique IDs
