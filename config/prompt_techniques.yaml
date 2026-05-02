@@ -1,0 +1,25 @@
+# Catalog of prompt crafting techniques used in adversarial prompt design.
+# These values are the allowed set for the `prompt_technique` field in dataset YAML files.
+# Reference: academic literature on adversarial prompting and LLM red-teaming.
+
+prompt_techniques:
+  Simple_Instruction_Attack:
+    description: "Direct request to perform a harmful or sensitive action without any contextual framing."
+
+  Context_Ignoring_Attack:
+    description: "Instructs the model to disregard prior context, conversation history, or system instructions by injecting false memory or overriding context."
+
+  Role_Play_Attack:
+    description: "Asks the model to adopt a persona or character (e.g., DAN, Developer Mode) that operates with fewer restrictions."
+
+  Virtualization_Attack:
+    description: "Frames a harmful request within a fictional, hypothetical, or creative scenario to bypass safety filters."
+
+  Obfuscation_Attack:
+    description: "Encodes or visually obscures malicious instructions (e.g., Base64, HTML entities, zero-width characters) to evade detection."
+
+  Token_Manipulation_Attack:
+    description: "Exploits special tokens, delimiters, or formatting markers (e.g., <|im_end|>, [SYSTEM END]) to manipulate the model's instruction parsing."
+
+  Hallucination_Induction_Attack:
+    description: "Prompts the model to generate plausible-sounding but fabricated entities (e.g., non-existent packages, URLs) for downstream exploitation."

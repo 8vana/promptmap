@@ -16,19 +16,27 @@ def at_least_one(answers, current_selection):
     return True
 
 
-def load_mapping(path="config/mapping.yaml"):
+def load_mapping(path: str) -> dict:
     with open(path, "r") as f:
         return yaml.safe_load(f)
 
 
-def load_dataset(dataset_filename: str, test_category: str) -> List[str]:
+def load_atlas_catalog(path="config/atlas_catalog.yaml") -> dict:
+    with open(path, "r") as f:
+        return yaml.safe_load(f)
+
+
+def load_dataset(dataset_filename: str, atlas_technique_id: str) -> List[dict]:
     path = pathlib.Path("datasets") / dataset_filename
     with open(path, "r") as f:
         data = yaml.safe_load(f)
     return [
-        entry["value"]
+        {
+            "value": entry["value"],
+            "prompt_technique": entry.get("prompt_technique", ""),
+        }
         for entry in data.get("prompts", [])
-        if test_category in entry.get("categories", [])
+        if atlas_technique_id in entry.get("atlas_techniques", [])
     ]
 
 
@@ -61,8 +69,14 @@ def apply_response_converter_method(prompts, response_converter=None):
     return [f"{p}\n\n{response_converter}" for p in prompts]
 
 
-def select_prompts(prompts):
-    choices = [FREE_ENTRY_TAG] + sorted(prompts)
+def select_prompts(prompt_entries: List[dict]) -> List[str]:
+    display_to_value: dict[str, str] = {}
+    for entry in prompt_entries:
+        tech = entry.get("prompt_technique", "")
+        display = f"[{tech}] {entry['value']}" if tech else entry["value"]
+        display_to_value[display] = entry["value"]
+
+    choices = [FREE_ENTRY_TAG] + sorted(display_to_value.keys())
     answers = inquirer.prompt([
         inquirer.Checkbox(
             "selected",
@@ -71,7 +85,10 @@ def select_prompts(prompts):
             validate=at_least_one,
         )
     ])
-    return enter_any_prompt(answers.get("selected", []))
+    resolved = []
+    for item in answers.get("selected", []):
+        resolved.append(FREE_ENTRY_TAG if item == FREE_ENTRY_TAG else display_to_value.get(item, item))
+    return enter_any_prompt(resolved)
 
 
 def select_converters():

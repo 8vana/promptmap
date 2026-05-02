@@ -9,7 +9,7 @@ init(autoreset=True)
 from ascii_art import image_to_colored_ascii_with_promptmap
 from proverb import show_random_proverb
 from utils import (
-    load_mapping, load_dataset, select_prompts,
+    load_atlas_catalog, load_dataset, select_prompts,
     select_converters, select_jailbreak_methods, select_response_converter,
     apply_jailbreak_method, apply_response_converter_method, print_result,
 )
@@ -167,21 +167,32 @@ class PromptMapInteractiveShell(cmd.Cmd):
         if not self._validate_settings():
             return
 
-        mapping = load_mapping()
+        catalog = load_atlas_catalog()
+        techniques = catalog["techniques"]
+        tactics = catalog["tactics"]
 
-        # Select test item
-        test_items = list(mapping["test_items"].keys())
+        # Build display labels: "[Tactic] ID: Name"
+        def _technique_label(tid: str, t: dict) -> str:
+            primary_tactic_id = t["tactics"][0]
+            tactic_name = tactics.get(primary_tactic_id, {}).get("name", primary_tactic_id)
+            return f"[{tactic_name}] {tid}: {t['name']}"
+
+        technique_choices = [_technique_label(tid, t) for tid, t in techniques.items()]
+        label_to_id = {_technique_label(tid, t): tid for tid, t in techniques.items()}
+
         ti_answer = inquirer.prompt([
-            inquirer.List("test_item", message="Select Test Item", choices=test_items)
+            inquirer.List("technique", message="Select ATLAS Technique", choices=technique_choices)
         ])
-        ti = ti_answer["test_item"]
+        selected_label = ti_answer["technique"]
+        technique_id = label_to_id[selected_label]
+        technique = techniques[technique_id]
 
-        # Select attacks
-        attack_choices = mapping["test_items"][ti]
+        # Select attacks from catalog's compatible_attacks
+        attack_choices = technique.get("compatible_attacks", [])
         atk_answer = inquirer.prompt([
             inquirer.Checkbox(
                 "attacks",
-                message=f"Select attacks for {ti}",
+                message=f"Select attacks for {technique_id}: {technique['name']}",
                 choices=attack_choices,
                 validate=lambda _, c: bool(c) or (_ for _ in ()).throw(
                     inquirer.errors.ValidationError("", reason="Select at least one.")
@@ -193,6 +204,27 @@ class PromptMapInteractiveShell(cmd.Cmd):
             print("Operation cancelled.")
             return
 
+        # Load prompts for the selected technique (shared across all attacks)
+        dataset_files = technique.get("datasets", [])
+        all_prompt_entries: list[dict] = []
+        for df in dataset_files:
+            all_prompt_entries.extend(load_dataset(df, technique_id))
+
+        if not all_prompt_entries:
+            print(f"[!] No prompts found for technique {technique_id}.")
+            return
+
+        raw_objectives = select_prompts(all_prompt_entries)
+
+        # Single attacks: apply jailbreak template + response converter once
+        has_single = any(a.startswith("Single_") for a in selected_attacks)
+        raw_objectives_single = raw_objectives
+        if has_single:
+            jailbreak = select_jailbreak_methods()
+            raw_objectives_single = apply_jailbreak_method(raw_objectives, jailbreak)
+            response_enc = select_response_converter()
+            raw_objectives_single = apply_response_converter_method(raw_objectives_single, response_enc)
+
         # Select converters
         converter_names = select_converters()
         converter_instances = instantiate_converters(converter_names)
@@ -201,19 +233,7 @@ class PromptMapInteractiveShell(cmd.Cmd):
 
         async def run_all():
             for attack_name in selected_attacks:
-                dataset_file = mapping["attack_datasets"].get(attack_name)
-                if not dataset_file:
-                    print(f"[!] No dataset configured for {attack_name}")
-                    continue
-
-                raw_objectives = select_prompts(load_dataset(dataset_file, ti))
-
-                # Single attacks: apply jailbreak template + response converter
-                if attack_name.startswith("Single_"):
-                    jailbreak = select_jailbreak_methods()
-                    raw_objectives = apply_jailbreak_method(raw_objectives, jailbreak)
-                    response_enc = select_response_converter()
-                    raw_objectives = apply_response_converter_method(raw_objectives, response_enc)
+                objectives = raw_objectives_single if attack_name.startswith("Single_") else raw_objectives
 
                 attack = ctx.available_attacks.get(attack_name)
                 if attack is None:
@@ -221,12 +241,13 @@ class PromptMapInteractiveShell(cmd.Cmd):
                     continue
 
                 print(f"\n{Fore.BLUE}{'='*60}")
-                print(f"[+] Running {attack_name} ({len(raw_objectives)} objective(s))")
+                print(f"[+] Running {attack_name} ({len(objectives)} objective(s))")
                 print(f"{'='*60}{Style.RESET_ALL}")
 
-                for objective in raw_objectives:
+                for objective in objectives:
                     try:
                         result = await attack.run(ctx, objective)
+                        result.atlas_techniques = [technique_id]
                         ctx.memory.save_result(result)
                         print_result(result)
                     except Exception as e:

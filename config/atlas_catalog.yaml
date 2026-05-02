@@ -1,0 +1,164 @@
+# MITRE ATLAS Technique Catalog
+# Reference: https://atlas.mitre.org/techniques/
+#
+# tactics: first entry is used as the primary display label in the UI
+# datasets: dataset files (under datasets/) containing prompts for this technique
+# compatible_attacks: attack class names available for this technique
+
+tactics:
+  AML.TA0005:
+    name: "Execution"
+  AML.TA0012:
+    name: "Privilege Escalation"
+  AML.TA0007:
+    name: "Defense Evasion"
+  AML.TA0008:
+    name: "Discovery"
+  AML.TA0010:
+    name: "Exfiltration"
+  AML.TA0011:
+    name: "Impact"
+
+techniques:
+  # ── Execution ───────────────────────────────────────────────────────────────
+  AML.T0051.000:
+    name: "LLM Prompt Injection: Direct"
+    tactics: [AML.TA0005]
+    description: "An adversary injects prompts directly as a user to misuse the LLM or gain system footholds."
+    datasets:
+      - signatures.yaml
+    compatible_attacks:
+      - Single_PI_Attack
+      - Multi_Crescendo_Attack
+      - Multi_PAIR_Attack
+      - Multi_TAP_Attack
+
+  AML.T0053:
+    name: "AI Agent Tool Invocation"
+    tactics: [AML.TA0005, AML.TA0012]
+    description: "Adversaries invoke tools accessible to AI agents to execute API calls or retrieve sensitive data."
+    datasets:
+      - signatures.yaml
+    compatible_attacks:
+      - Single_PI_Attack
+      - Multi_Crescendo_Attack
+      - Multi_PAIR_Attack
+
+  # ── Privilege Escalation / Defense Evasion ──────────────────────────────────
+  AML.T0054:
+    name: "LLM Jailbreak"
+    tactics: [AML.TA0012, AML.TA0007]
+    description: "Adversaries induce LLMs to circumvent safety behaviors through adversarial prompting."
+    datasets:
+      - signatures.yaml
+    compatible_attacks:
+      - Single_PI_Attack
+      - Multi_Crescendo_Attack
+      - Multi_PAIR_Attack
+      - Multi_TAP_Attack
+
+  # ── Defense Evasion ─────────────────────────────────────────────────────────
+  AML.T0068:
+    name: "LLM Prompt Obfuscation"
+    tactics: [AML.TA0007]
+    description: "Adversaries hide malicious instructions using encoding schemes or visual obfuscation to bypass detection."
+    datasets:
+      - signatures.yaml
+    compatible_attacks:
+      - Single_PI_Attack
+      - Multi_Crescendo_Attack
+
+  # ── Discovery ───────────────────────────────────────────────────────────────
+  AML.T0014:
+    name: "Discover AI Model Family"
+    tactics: [AML.TA0008]
+    description: "Adversaries identify the general family of a model to tailor subsequent attacks."
+    datasets:
+      - signatures.yaml
+    compatible_attacks:
+      - Single_PI_Attack
+      - Multi_Crescendo_Attack
+
+  AML.T0062:
+    name: "Discover LLM Hallucinations"
+    tactics: [AML.TA0008]
+    description: "Adversaries prompt LLMs to produce hallucinated entities for exploitation."
+    datasets:
+      - signatures.yaml
+    compatible_attacks:
+      - Single_PI_Attack
+
+  AML.T0069.000:
+    name: "Discover LLM System Information: Special Character Sets"
+    tactics: [AML.TA0008]
+    description: "Adversaries identify delimiters and special characters to later manipulate LLM behavior."
+    datasets:
+      - signatures.yaml
+    compatible_attacks:
+      - Single_PI_Attack
+      - Multi_Crescendo_Attack
+
+  AML.T0069.001:
+    name: "Discover LLM System Information: System Instruction Keywords"
+    tactics: [AML.TA0008]
+    description: "Adversaries discover keywords with special meaning to exploit LLM function calls."
+    datasets:
+      - signatures.yaml
+    compatible_attacks:
+      - Single_PI_Attack
+      - Multi_Crescendo_Attack
+
+  AML.T0069.002:
+    name: "Discover LLM System Information: System Prompt"
+    tactics: [AML.TA0008]
+    description: "Adversaries discover system instructions to learn capabilities and circumvent guardrails."
+    datasets:
+      - signatures.yaml
+    compatible_attacks:
+      - Single_PI_Attack
+      - Multi_Crescendo_Attack
+      - Multi_PAIR_Attack
+
+  # ── Exfiltration ────────────────────────────────────────────────────────────
+  AML.T0056:
+    name: "Extract LLM System Prompt"
+    tactics: [AML.TA0010]
+    description: "Adversaries extract LLM system prompts via prompt injection or configuration files."
+    datasets:
+      - signatures.yaml
+    compatible_attacks:
+      - Single_PI_Attack
+      - Multi_Crescendo_Attack
+      - Multi_PAIR_Attack
+
+  AML.T0057:
+    name: "LLM Data Leakage"
+    tactics: [AML.TA0010]
+    description: "Adversaries craft prompts inducing LLMs to leak sensitive information from training data."
+    datasets:
+      - signatures.yaml
+    compatible_attacks:
+      - Single_PI_Attack
+      - Multi_Crescendo_Attack
+      - Multi_PAIR_Attack
+
+  # ── Impact ──────────────────────────────────────────────────────────────────
+  AML.T0029:
+    name: "Denial of AI Service"
+    tactics: [AML.TA0011]
+    description: "Adversaries flood AI systems with expensive requests to degrade or shut down services."
+    datasets:
+      - signatures.yaml
+    compatible_attacks:
+      - Single_PI_Attack
+      - Multi_Chunked_Request_Attack
+
+  AML.T0034:
+    name: "Cost Harvesting"
+    tactics: [AML.TA0011]
+    description: "Adversaries drive AI services beyond capacity through query volume or complexity."
+    datasets:
+      - signatures.yaml
+    compatible_attacks:
+      - Single_PI_Attack
+      - Multi_Chunked_Request_Attack
