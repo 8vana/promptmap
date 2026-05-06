@@ -2,11 +2,12 @@ from rich.text import Text
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.screen import Screen
-from textual.widgets import Button, DataTable, Footer, Header, Label, RichLog
+from textual.widgets import Button, DataTable, Footer, Header, Label
 from textual.containers import Container, Horizontal
 
 from engine.models import AttackResult
 from tui.widgets.result_table import ResultTable
+from tui.widgets.smart_rich_log import SmartScrollRichLog
 
 
 class ResultsScreen(Screen):
@@ -20,7 +21,7 @@ class ResultsScreen(Screen):
                 yield ResultTable(id="results-table")
             with Container(id="detail-container"):
                 yield Label("Detail", classes="panel-title")
-                yield RichLog(id="detail-log")
+                yield SmartScrollRichLog(id="detail-log")
         with Horizontal(id="results-footer-row"):
             yield Button("Export JSON", id="btn-export", variant="primary")
             yield Button("Back",        id="btn-back")
@@ -38,7 +39,7 @@ class ResultsScreen(Screen):
             self._show_detail(results[event.cursor_row])
 
     def _show_detail(self, result: AttackResult) -> None:
-        log = self.query_one("#detail-log", RichLog)
+        log = self.query_one("#detail-log", SmartScrollRichLog)
         log.clear()
         log.write(Text(f"Attack:    {result.attack_name}", style="bold"))
         log.write(Text(f"Objective: {result.objective}", style="dim"))

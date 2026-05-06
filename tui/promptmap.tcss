@@ -5,6 +5,24 @@ Screen {
     color: #dde0f0;
 }
 
+/* ── Scrollbars (visible against the dark theme) ─────────────────────────── */
+/* Targets every RichLog (and its SmartScrollRichLog subclass) plus the
+   DataTable / TabbedContent panes. Without these, the default Textual
+   scrollbars are nearly invisible on the project's dark background.
+   NOTE: scrollbar-color takes a SINGLE color (the thumb). Passing two
+   colors silently makes Textual keep the second one — which used to make
+   the thumb identical to the track and effectively invisible here. */
+RichLog, DataTable, ScrollableContainer, ContentSwitcher {
+    scrollbar-size-vertical: 1;
+    scrollbar-size-horizontal: 1;
+    scrollbar-color:        #4466cc;
+    scrollbar-color-hover:  #5577dd;
+    scrollbar-color-active: #6688ee;
+    scrollbar-background:        #1a1a30;
+    scrollbar-background-hover:  #1a1a30;
+    scrollbar-background-active: #1a1a30;
+}
+
 Header {
     background: #1a1a2e;
     color: #6688ff;
@@ -83,14 +101,75 @@ Footer {
     background: #141428;
     border: round #2a2a55;
     padding: 1 2;
-    margin: 1 2;
+    margin: 1 2 0 2;
+    height: 1fr;
+}
+
+#settings-buttons {
+    height: 5;
+    align: center middle;
+    background: #1a1a2e;
+    padding: 1 2;
+    margin: 0 2 0 2;
+}
+
+/* Container のデフォルトは height: 1fr のため、内側 Container が 1fr で
+   空間を奪い合って中身が見えなくなる。height: auto で中身に合わせる。
+   （Textual の overflow は auto/scroll/hidden のみで visible は不可。
+     ただし height: auto なら overflow しないので overflow 指定は不要） */
+#http-config, #browser-config {
     height: auto;
+}
+
+/* Browser Config Path 入力欄と Browse ボタンを横並びに */
+#browser-config-row {
+    height: 3;
+    layout: horizontal;
+    margin-bottom: 1;
+}
+#browser-config-row Input {
+    width: 1fr;
+}
+#browser-config-row Button {
+    width: 14;
+    margin-left: 1;
+}
+
+/* ─── File Picker (modal) ─── */
+FilePickerScreen {
+    align: center middle;
+}
+#file-picker-dialog {
+    width: 80%;
+    height: 80%;
+    background: #141428;
+    border: round #5566cc;
+    padding: 1 2;
+}
+#file-picker-tree {
+    height: 1fr;
+    background: #0f0f1a;
+    border: tall #2a2a55;
+    margin-top: 1;
+}
+#file-picker-buttons {
+    height: 5;
+    align: center middle;
+    padding: 1 0 0 0;
 }
 
 .field-label {
     color: #8888bb;
     margin-top: 1;
 }
+
+.section-divider {
+    color: #6688ff;
+    text-style: bold;
+    margin-top: 1;
+    margin-bottom: 1;
+}
+
 
 Input {
     background: #1a1a30;
@@ -209,9 +288,16 @@ Button:disabled {
 }
 
 #conv-log {
-    height: 1fr;
+    height: 2fr;
     background: #0f0f1a;
     border: none;
+    padding: 0 1;
+}
+
+#activity-log-exec {
+    height: 1fr;
+    background: #0a0a14;
+    border-top: solid #2a2a55;
     padding: 0 1;
 }
 
@@ -238,8 +324,17 @@ Button:disabled {
 }
 
 #lbl-progress {
+    height: 1;
     color: #555577;
     text-align: center;
+}
+
+#exec-bottom {
+    height: 3;
+    align: center middle;
+    background: #141428;
+    padding: 0 2;
+    border-top: solid #2a2a55;
 }
 
 /* ─── Agent Scan ─── */
@@ -253,8 +348,16 @@ Button:disabled {
 }
 
 #agent-log {
-    height: 1fr;
+    height: 2fr;
     background: #0f0f1a;
+    border: round #2a2a55;
+    margin: 0 2 1 2;
+    padding: 0 1;
+}
+
+#agent-activity-log {
+    height: 1fr;
+    background: #0a0a14;
     border: round #2a2a55;
     margin: 0 2 1 2;
     padding: 0 1;
@@ -303,4 +406,40 @@ DataTable > .datatable--header {
 
 DataTable > .datatable--cursor {
     background: #2a2a55;
+}
+
+/* ─── Log Viewer ─── */
+
+LogViewerScreen TabbedContent {
+    height: 1fr;
+}
+
+LogViewerScreen .log-toolbar {
+    height: 3;
+    background: #141428;
+    padding: 0 1;
+    border-bottom: solid #2a2a55;
+}
+
+LogViewerScreen .toolbar-label {
+    color: #8888bb;
+    padding: 1 1 0 1;
+    width: auto;
+}
+
+LogViewerScreen .toolbar-btn {
+    width: 12;
+    margin-left: 1;
+}
+
+LogViewerScreen .log-toolbar Select {
+    width: 22;
+    margin: 0 1;
+}
+
+#op-log, #log-conv-log {
+    height: 1fr;
+    background: #0f0f1a;
+    border: none;
+    padding: 0 1;
 }

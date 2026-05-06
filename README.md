@@ -115,12 +115,56 @@ playwright install
 
 ### API keys (environment variables — never written to disk)
 
+Provider-specific API keys are read from environment variables. Copy [`setup_env.sh`](setup_env.sh) to `setup_env.local.sh` (git-ignored), fill in only the providers you intend to use, and `source` it before launching:
+
 ```bash
-export ADV_LLM_API_KEY="sk-..."    # API key for the adversarial LLM
-export SCORE_LLM_API_KEY="sk-..."  # API key for the scorer LLM
+cp setup_env.sh setup_env.local.sh
+# edit setup_env.local.sh
+source setup_env.local.sh
 ```
 
-Both variables are read at startup. If unset, a warning is shown and the tool cannot run attacks.
+| Provider | Required env vars |
+|---|---|
+| OpenAI | `OPENAI_API_KEY` |
+| Anthropic | `ANTHROPIC_API_KEY` |
+| Google Gemini | `GEMINI_API_KEY` (or `GOOGLE_API_KEY`) |
+| Amazon Bedrock | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` (optional: `AWS_REGION`, `AWS_SESSION_TOKEN`) |
+| Ollama (local) | none (optional: `OLLAMA_BASE_URL`) |
+
+Providers whose required env vars are missing are shown as **disabled** in the Settings screen.
+
+#### Optional: override LLM provider/model via env vars
+
+The Adversarial LLM and Score LLM can also be configured via environment variables, which **override** the values stored in `~/.promptmap_config.json` on every launch. Useful for scripted / CI runs.
+
+```bash
+export PROMPTMAP_ADV_LLM_PROVIDER="openai"
+export PROMPTMAP_ADV_LLM_NAME="gpt-4o-mini"
+export PROMPTMAP_SCORE_LLM_PROVIDER="anthropic"
+export PROMPTMAP_SCORE_LLM_NAME="claude-3-5-sonnet-20241022"
+```
+
+Provider value must be one of `openai | anthropic | gemini | bedrock | ollama`.
+
+### Logs
+
+Two log streams are emitted automatically — both are local files only, no telemetry is sent over the network.
+
+| Stream | Path | Format | Purpose |
+|---|---|---|---|
+| Application log | `~/.promptmap/logs/promptmap.log` (rotated, 10 MB × 5) | text via Python `logging` | Errors, warnings, lifecycle events. Rotates automatically. |
+| Conversation telemetry | `~/.promptmap/runs/<timestamp>_<id>.jsonl` (one file per process) | OTEL-leaning JSONL | One line per LLM call (Adversarial / Target / Scorer): prompt, response, latency, role. Designed to be replayable into Langfuse / OTLP later. |
+
+#### Log levels
+
+The default level is `INFO`. To enable verbose tracing of every LLM call:
+
+```bash
+python promptmap.py --debug          # one-shot
+# or
+export PROMPTMAP_LOG_LEVEL=DEBUG     # persistent
+python promptmap.py
+```
 
 ### Other settings (persisted to `~/.promptmap_config.json`)
 
@@ -173,6 +217,16 @@ Both synchronous and asynchronous response patterns are supported transparently,
 
 Cookie-based sessions and JavaScript-managed JWTs are handled transparently (real browser). For pre-obtained tokens that must be injected manually, use the `set_extra_http_headers` or `evaluate` navigation actions.
 
+If the entire site is behind **HTTP Basic auth** (e.g. an Nginx-protected staging environment), put a `set_extra_http_headers` step **before the first `goto`** so the initial page load is authenticated:
+
+```yaml
+- action: set_extra_http_headers
+  headers:
+    # base64("username:password") — generate with:
+    #   python3 -c "import base64; print(base64.b64encode(b'user:pass').decode())"
+    Authorization: "Basic dXNlcjpwYXNz"
+```
+
 ### Browser config YAML
 
 Create a YAML file that describes how to navigate to the chat interface and how to interact with it. See [`examples/browser_target_example.yaml`](examples/browser_target_example.yaml) for a fully annotated reference.
@@ -218,7 +272,7 @@ chat:
 | `wait_for_url` | Wait until the URL matches a glob pattern |
 | `select` | Choose a `<select>` dropdown option |
 | `press` | Press a keyboard key (e.g. `"Enter"`) |
-| `set_extra_http_headers` | Inject HTTP headers for all subsequent requests (e.g. `Authorization: Bearer <token>`) |
+| `set_extra_http_headers` | Inject HTTP headers for all subsequent requests (e.g. `Authorization: Bearer <token>` or `Authorization: Basic <base64>`) |
 | `evaluate` | Execute JavaScript in the browser context (e.g. `localStorage.setItem(...)`) |
 
 ### Recording navigation steps

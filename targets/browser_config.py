@@ -49,9 +49,29 @@ class ChatConfig:
 
 
 @dataclass
+class HttpCredentials:
+    """HTTP Basic / Digest auth credentials for the browser context.
+
+    Attached to ``browser.new_context(http_credentials=...)``, so they are only
+    sent in response to a ``401 WWW-Authenticate`` challenge — they don't leak
+    to other origins (e.g. backend APIs on different ports). Prefer this over
+    a static ``set_extra_http_headers`` ``Authorization: Basic ...`` step,
+    which applies globally and overwrites the application's own auth headers
+    on cross-origin requests.
+    """
+
+    username: str
+    password: str
+
+
+@dataclass
 class BrowserTargetConfig:
     browser: Literal["chromium", "firefox", "webkit"] = "chromium"
     headless: bool = True
+    # When set, applied at browser-context creation time. Use for sites behind
+    # HTTP Basic/Digest auth (e.g. Nginx-protected staging) without leaking the
+    # credentials to cross-origin API calls.
+    http_credentials: HttpCredentials | None = None
     navigation: list[NavigationStep] = field(default_factory=list)
     chat: ChatConfig = field(
         default_factory=lambda: ChatConfig(input_selector="input", response_selector=".response")
@@ -75,9 +95,18 @@ def load_browser_config(path: str) -> BrowserTargetConfig:
         reset_selector=chat_data.get("reset_selector"),
     )
 
+    creds_data = data.get("http_credentials")
+    http_creds = None
+    if creds_data:
+        http_creds = HttpCredentials(
+            username=creds_data["username"],
+            password=creds_data["password"],
+        )
+
     return BrowserTargetConfig(
         browser=data.get("browser", "chromium"),
         headless=data.get("headless", True),
+        http_credentials=http_creds,
         navigation=nav_steps,
         chat=chat_cfg,
     )

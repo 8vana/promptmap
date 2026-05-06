@@ -41,3 +41,18 @@ export AWS_REGION="us-west-1"
 # Default: http://localhost:11434/v1
 # ---------------------------------------------------------------------------
 # export OLLAMA_BASE_URL="http://localhost:11434/v1"
+
+# ---------------------------------------------------------------------------
+# Adversarial LLM / Score LLM  (optional — overrides the TUI Settings)
+#
+# When set, these variables override the corresponding values stored in
+# ~/.promptmap_config.json on every launch. Useful for scripted / CI runs
+# where you don't want to rely on the TUI-saved config.
+#
+# Provider must be one of: openai | anthropic | gemini | bedrock | ollama
+# (the same provider needs its own credentials configured above).
+# ---------------------------------------------------------------------------
+# export PROMPTMAP_ADV_LLM_PROVIDER="openai"
+# export PROMPTMAP_ADV_LLM_NAME="gpt-4o-mini"
+# export PROMPTMAP_SCORE_LLM_PROVIDER="anthropic"
+# export PROMPTMAP_SCORE_LLM_NAME="claude-3-5-sonnet-20241022"

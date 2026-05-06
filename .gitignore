@@ -164,3 +164,8 @@ cython_debug/
 promptmap_config.json
 promptmap/
 .idea/setup_env.local.sh
+examples/browser_target_example.yaml
+setup_env.local.sh
+
+# promptmap runtime logs / conversation telemetry (local only)
+.promptmap/

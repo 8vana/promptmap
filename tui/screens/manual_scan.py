@@ -64,7 +64,25 @@ class ManualScanScreen(Screen):
             )
             return
 
-        ctx = self.app.build_context()
+        try:
+            ctx = self.app.build_context()
+        except FileNotFoundError as exc:
+            self.notify(
+                f"Browser config file not found:\n{exc.filename or exc}",
+                title="Cannot start scan",
+                severity="error",
+                timeout=8,
+            )
+            return
+        except Exception as exc:
+            self.notify(
+                f"Failed to initialize target: {exc}",
+                title="Cannot start scan",
+                severity="error",
+                timeout=8,
+            )
+            return
+
         from tui.screens.execution import ExecutionScreen
         self.app.push_screen(ExecutionScreen(ctx=ctx, attack_id=pressed.id, objective=objective))
 

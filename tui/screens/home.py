@@ -20,6 +20,7 @@ class HomeScreen(Screen):
         Binding("a", "go_agent",    "Agent",    show=True),
         Binding("s", "go_settings", "Settings", show=True),
         Binding("r", "go_results",  "Results",  show=True),
+        Binding("l", "go_logs",     "Logs",     show=True),
         Binding("q", "quit",        "Quit",     show=True),
     ]
 
@@ -39,6 +40,7 @@ class HomeScreen(Screen):
             yield Button("Agent Scan  [A]",  id="btn-agent",    classes="nav-btn")
             yield Button("Settings    [S]",  id="btn-settings", classes="nav-btn")
             yield Button("Results     [R]",  id="btn-results",  classes="nav-btn")
+            yield Button("Logs        [L]",  id="btn-logs",     classes="nav-btn")
 
         with Container(id="recent-box"):
             yield Label("Recent Results", classes="panel-title")
@@ -89,6 +91,7 @@ class HomeScreen(Screen):
             "btn-agent":    self.action_go_agent,
             "btn-settings": self.action_go_settings,
             "btn-results":  self.action_go_results,
+            "btn-logs":     self.action_go_logs,
         }
         action = mapping.get(event.button.id)
         if action:
@@ -109,6 +112,10 @@ class HomeScreen(Screen):
     def action_go_results(self) -> None:
         from tui.screens.results import ResultsScreen
         self.app.push_screen(ResultsScreen())
+
+    def action_go_logs(self) -> None:
+        from tui.screens.log_viewer import LogViewerScreen
+        self.app.push_screen(LogViewerScreen())
 
     def on_screen_resume(self) -> None:
         self._refresh_status()

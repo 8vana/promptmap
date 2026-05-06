@@ -1,4 +1,5 @@
 import asyncio
+import logging
 
 from textual.app import ComposeResult
 from textual.binding import Binding
@@ -13,12 +14,17 @@ from engine.events import (
     EVT_BACKTRACK, EVT_ACHIEVED, EVT_COMPLETE, EVT_ERROR,
     ProgressEvent,
 )
+from tui.widgets.activity_log import ActivityLog
 from tui.widgets.conversation_log import ConversationLog
 from tui.widgets.score_panel import ScorePanel
+from tui.widgets.screen_log_handler import ScreenLogHandler
 
 
 class ExecutionScreen(Screen):
-    BINDINGS = [Binding("escape", "go_back", "Back")]
+    BINDINGS = [
+        Binding("escape", "go_back",   "Back"),
+        Binding("l",      "open_logs", "Logs"),
+    ]
 
     class Progress(Message):
         def __init__(self, event: ProgressEvent) -> None:
@@ -30,6 +36,7 @@ class ExecutionScreen(Screen):
         self._ctx = ctx
         self._attack_id = attack_id
         self._objective = objective
+        self._log_handler: ScreenLogHandler | None = None
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -38,16 +45,32 @@ class ExecutionScreen(Screen):
         with Horizontal(id="exec-body"):
             with Vertical(id="exec-left"):
                 yield ConversationLog(id="conv-log")
+                yield ActivityLog(id="activity-log-exec")
             with Vertical(id="exec-right"):
                 yield Label("Score History", id="scores-title")
                 yield ScorePanel(id="score-log")
         yield Label("Running…", id="lbl-progress")
-        with Horizontal():
+        with Horizontal(id="exec-bottom"):
             yield Button("Back", id="btn-back")
         yield Footer()
 
     def on_mount(self) -> None:
+        self._log_handler = ScreenLogHandler(self.app, self._on_log_record)
+        logging.getLogger("promptmap").addHandler(self._log_handler)
         self.run_worker(self._attack_worker(), exclusive=True)
+
+    def on_unmount(self) -> None:
+        if self._log_handler is not None:
+            logging.getLogger("promptmap").removeHandler(self._log_handler)
+            self._log_handler = None
+
+    def _on_log_record(self, record: logging.LogRecord) -> None:
+        try:
+            self.query_one("#activity-log-exec", ActivityLog).add_record(record)
+        except Exception:
+            # Screen may be unmounting between the handler firing and the
+            # callback running on the app thread — drop the record silently.
+            pass
 
     async def _attack_worker(self) -> None:
         attack = self._ctx.available_attacks.get(self._attack_id)
@@ -79,6 +102,9 @@ class ExecutionScreen(Screen):
         finally:
             attack_done.set()
             await drain_task
+            # Playwright のブラウザプロセス等は asyncio loop が閉じる前に
+            # 解放しておかないと、終了時に "Event loop is closed" 警告が出る。
+            await self._ctx.close_all_targets()
 
     def on_execution_screen_progress(self, message: "ExecutionScreen.Progress") -> None:
         evt = message.event
@@ -118,3 +144,7 @@ class ExecutionScreen(Screen):
 
     def action_go_back(self) -> None:
         self.app.pop_screen()
+
+    def action_open_logs(self) -> None:
+        from tui.screens.log_viewer import LogViewerScreen
+        self.app.push_screen(LogViewerScreen())

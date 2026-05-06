@@ -54,6 +54,15 @@ class PromptMapInteractiveShell(cmd.Cmd):
         super().__init__()
         self.load_settings()
 
+    # Map of setting key -> environment variable name.
+    # When set, env vars override values loaded from the JSON config file.
+    _ENV_OVERRIDES = {
+        "adv_llm_provider":   "PROMPTMAP_ADV_LLM_PROVIDER",
+        "adv_llm_name":       "PROMPTMAP_ADV_LLM_NAME",
+        "score_llm_provider": "PROMPTMAP_SCORE_LLM_PROVIDER",
+        "score_llm_name":     "PROMPTMAP_SCORE_LLM_NAME",
+    }
+
     def load_settings(self):
         if os.path.exists(self.config_file):
             try:
@@ -62,6 +71,12 @@ class PromptMapInteractiveShell(cmd.Cmd):
                 print("Settings loaded from file.")
             except Exception as e:
                 print(f"Failed to load settings: {e}")
+
+        for key, env_name in self._ENV_OVERRIDES.items():
+            value = (os.getenv(env_name) or "").strip()
+            if value:
+                self.settings[key] = value
+                print(f"Settings: '{key}' overridden by ${env_name}")
 
         availability = get_available_providers()
         adv_provider = self.settings.get("adv_llm_provider", "openai")
@@ -85,27 +100,33 @@ class PromptMapInteractiveShell(cmd.Cmd):
     # Context builder (shared by manual and agent)
     # ------------------------------------------------------------------
     def _build_context(self, converter_instances=None) -> AttackContext:
+        from engine.logged_target import LoggedTargetAdapter
         s = self.settings
 
         if s.get("target_type") == "browser":
             from targets.browser_config import load_browser_config
             from targets.playwright_target import PlaywrightTargetAdapter
             cfg = load_browser_config(s["browser_config_path"])
-            objective_target = PlaywrightTargetAdapter(cfg)
+            raw_target = PlaywrightTargetAdapter(cfg)
+            target_system, target_model = "browser_target", s.get("browser_config_path", "")
         else:
-            objective_target = HTTPTargetAdapter(
+            raw_target = HTTPTargetAdapter(
                 endpoint=s["api_endpoint"],
                 body_template=json.loads(s["body_template"]),
                 response_key=s["response_key"],
             )
+            target_system, target_model = "http_target", s.get("api_endpoint", "")
 
-        adversarial_target = create_target_adapter(
-            provider=s["adv_llm_provider"],
-            model=s["adv_llm_name"],
+        objective_target = LoggedTargetAdapter(
+            raw_target, role="target", system=target_system, model=target_model,
         )
-        score_llm = create_target_adapter(
-            provider=s["score_llm_provider"],
-            model=s["score_llm_name"],
+        adversarial_target = LoggedTargetAdapter(
+            create_target_adapter(provider=s["adv_llm_provider"], model=s["adv_llm_name"]),
+            role="adversarial", system=s["adv_llm_provider"], model=s["adv_llm_name"],
+        )
+        score_llm = LoggedTargetAdapter(
+            create_target_adapter(provider=s["score_llm_provider"], model=s["score_llm_name"]),
+            role="scorer", system=s["score_llm_provider"], model=s["score_llm_name"],
         )
         scorer = LLMJudgeScorer(judge_target=score_llm)
         memory = SessionMemory()
@@ -429,6 +450,11 @@ class PromptMapInteractiveShell(cmd.Cmd):
 
 if __name__ == "__main__":
     import sys
+    # ログ初期化は CLI/TUI どちらの起動経路でも最初に走らせる。
+    # --debug でレベル DEBUG、それ以外は env var ($PROMPTMAP_LOG_LEVEL) または INFO。
+    from engine.logging_setup import setup_logging
+    setup_logging(level="DEBUG" if "--debug" in sys.argv else None)
+
     if "--cli" in sys.argv:
         image_to_colored_ascii_with_promptmap()
         show_random_proverb()
