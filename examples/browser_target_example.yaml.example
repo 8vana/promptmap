@@ -20,6 +20,24 @@ browser: chromium
 # Set headless: false to watch the browser window while PromptMap is running.
 headless: true
 
+# ── HTTP authentication (optional) ────────────────────────────────────────────
+# Use this for sites behind HTTP Basic / Digest auth (e.g. Nginx-protected
+# staging). The credentials are attached to the browser CONTEXT and only sent
+# in response to a 401 WWW-Authenticate challenge, so they do NOT leak to
+# other origins (e.g. backend APIs on different ports).
+#
+# Prefer this over `set_extra_http_headers: { Authorization: Basic ... }`,
+# which applies globally and overwrites the application's own auth headers
+# (e.g. Bearer JWT tokens) on cross-origin API calls — leading to spurious
+# 401 errors that are hard to debug.
+#
+# http_credentials:
+#   username: "your-username"
+#   # Use single quotes if the password contains \, $, or other characters
+#   # that YAML would otherwise interpret in double-quoted strings (e.g. `\\`
+#   # becomes a single `\` in double quotes, which silently corrupts the value).
+#   password: 'your-password'
+
 # ── Navigation steps ──────────────────────────────────────────────────────────
 # These steps are executed once at startup to reach the chat interface.
 # Supported actions:
@@ -30,8 +48,13 @@ headless: true
 #   wait_for_url      : wait until the URL matches a glob pattern
 #   select            : choose a <select> dropdown option
 #   press             : press a keyboard key (e.g. "Enter", "Tab")
-#   set_extra_http_headers : inject HTTP headers for all subsequent requests
-#                            (use for pre-obtained Bearer JWT tokens)
+#   set_extra_http_headers : inject HTTP headers globally for all subsequent
+#                            requests originating from the page. Suitable for
+#                            pre-obtained Bearer JWT tokens that the target
+#                            application expects on every API call. For HTTP
+#                            Basic auth, use top-level `http_credentials`
+#                            instead — `set_extra_http_headers` is too coarse
+#                            (it overrides cross-origin Authorization headers).
 #   evaluate          : execute JavaScript in the browser context
 #                       (use for localStorage / sessionStorage manipulation)
 

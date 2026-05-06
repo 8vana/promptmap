@@ -1,8 +1,9 @@
 from rich.text import Text
-from textual.widgets import RichLog
+
+from tui.widgets.smart_rich_log import SmartScrollRichLog
 
 
-class ConversationLog(RichLog):
+class ConversationLog(SmartScrollRichLog):
     """Scrollable conversation log with user / assistant message styling."""
 
     def add_user(self, text: str) -> None:

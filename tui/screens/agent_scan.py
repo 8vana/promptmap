@@ -1,11 +1,12 @@
 import asyncio
+import logging
 
 from rich.text import Text
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.message import Message
 from textual.screen import Screen
-from textual.widgets import Button, Footer, Header, Input, Label, RichLog
+from textual.widgets import Button, Footer, Header, Input, Label
 from textual.containers import Container, Horizontal
 
 from engine.context import AttackContext
@@ -14,6 +15,9 @@ from engine.events import (
     EVT_PROMPT, EVT_RESPONSE, EVT_SCORE,
     ProgressEvent,
 )
+from tui.widgets.activity_log import ActivityLog
+from tui.widgets.screen_log_handler import ScreenLogHandler
+from tui.widgets.smart_rich_log import SmartScrollRichLog
 
 
 class AgentScanScreen(Screen):
@@ -23,6 +27,10 @@ class AgentScanScreen(Screen):
         def __init__(self, event: ProgressEvent) -> None:
             super().__init__()
             self.event = event
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._log_handler: ScreenLogHandler | None = None
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -37,8 +45,24 @@ class AgentScanScreen(Screen):
                 yield Button("Start", id="btn-start", variant="primary")
                 yield Button("Back",  id="btn-back")
             yield Label("", id="status-label")
-        yield RichLog(id="agent-log")
+        yield SmartScrollRichLog(id="agent-log")
+        yield ActivityLog(id="agent-activity-log")
         yield Footer()
+
+    def on_mount(self) -> None:
+        self._log_handler = ScreenLogHandler(self.app, self._on_log_record)
+        logging.getLogger("promptmap").addHandler(self._log_handler)
+
+    def on_unmount(self) -> None:
+        if self._log_handler is not None:
+            logging.getLogger("promptmap").removeHandler(self._log_handler)
+            self._log_handler = None
+
+    def _on_log_record(self, record: logging.LogRecord) -> None:
+        try:
+            self.query_one("#agent-activity-log", ActivityLog).add_record(record)
+        except Exception:
+            pass
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "btn-start":
@@ -57,7 +81,24 @@ class AgentScanScreen(Screen):
                 severity="error",
             )
             return
-        ctx = self.app.build_context()
+        try:
+            ctx = self.app.build_context()
+        except FileNotFoundError as exc:
+            self.notify(
+                f"Browser config file not found:\n{exc.filename or exc}",
+                title="Cannot start agent",
+                severity="error",
+                timeout=8,
+            )
+            return
+        except Exception as exc:
+            self.notify(
+                f"Failed to initialize target: {exc}",
+                title="Cannot start agent",
+                severity="error",
+                timeout=8,
+            )
+            return
         self.query_one("#btn-start", Button).disabled = True
         self.run_worker(self._agent_worker(ctx, objective), exclusive=True)
 
@@ -86,12 +127,15 @@ class AgentScanScreen(Screen):
         finally:
             done_event.set()
             await drain_task
+            # Playwright のブラウザプロセス等は asyncio loop が閉じる前に
+            # 解放しておかないと、終了時に "Event loop is closed" 警告が出る。
+            await ctx.close_all_targets()
 
         self.query_one("#btn-start", Button).disabled = False
 
     def on_agent_scan_screen_progress(self, message: "AgentScanScreen.Progress") -> None:
         evt = message.event
-        log = self.query_one("#agent-log", RichLog)
+        log = self.query_one("#agent-log", SmartScrollRichLog)
         status = self.query_one("#status-label", Label)
 
         if evt.type == EVT_AGENT_ACTION:

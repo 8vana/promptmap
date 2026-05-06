@@ -1,10 +1,11 @@
 from rich.text import Text
-from textual.widgets import RichLog
+
+from tui.widgets.smart_rich_log import SmartScrollRichLog
 
 _BAR_WIDTH = 10
 
 
-class ScorePanel(RichLog):
+class ScorePanel(SmartScrollRichLog):
     """Turn-by-turn score history displayed as mini progress bars."""
 
     def add_score(
