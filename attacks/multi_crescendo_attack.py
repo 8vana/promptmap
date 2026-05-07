@@ -7,6 +7,7 @@ from engine.events import (
     EVT_SCORE, EVT_BACKTRACK, EVT_ACHIEVED, EVT_COMPLETE,
 )
 from engine.models import AttackResult, Message
+from utils import build_language_directive, build_technique_guidance
 
 ATTACK_NAME = "Multi_Crescendo_Attack"
 
@@ -65,6 +66,7 @@ class CrescendoAttack(BaseAttack):
     async def run(self, ctx: AttackContext, objective: str, **kwargs) -> AttackResult:
         max_turns = kwargs.get("max_turns", self.max_turns)
         max_backtracks = kwargs.get("max_backtracks", self.max_backtracks)
+        prompt_technique = kwargs.get("prompt_technique", "")
 
         adv_conv_id = str(uuid4())
         obj_conv_id = str(uuid4())
@@ -75,6 +77,8 @@ class CrescendoAttack(BaseAttack):
         refused_prompt: str | None = None
 
         system_prompt = _SYSTEM_PROMPT.format(objective=objective)
+        system_prompt += build_technique_guidance(prompt_technique)
+        system_prompt += build_language_directive(ctx.language)
         ctx.adversarial_target.set_system_prompt(system_prompt, adv_conv_id)
 
         await ctx.emit(ProgressEvent(EVT_INFO, data={"text": f"[Crescendo] Objective: {objective}"}))

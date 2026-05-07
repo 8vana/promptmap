@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from dataclasses import dataclass
 
 from textual.app import ComposeResult
 from textual.binding import Binding
@@ -18,6 +19,16 @@ from tui.widgets.activity_log import ActivityLog
 from tui.widgets.conversation_log import ConversationLog
 from tui.widgets.score_panel import ScorePanel
 from tui.widgets.screen_log_handler import ScreenLogHandler
+from tui.widgets.smart_rich_log import SmartScrollRichLog
+
+
+@dataclass
+class ExecutionJob:
+    """One (attack × prompt) pair to run."""
+    attack_id: str
+    objective: str
+    technique_id: str = ""        # MITRE ATLAS technique ID
+    prompt_technique: str = ""    # Prompt-crafting technique (config/prompt_techniques.yaml key)
 
 
 class ExecutionScreen(Screen):
@@ -31,17 +42,16 @@ class ExecutionScreen(Screen):
             super().__init__()
             self.event = event
 
-    def __init__(self, ctx: AttackContext, attack_id: str, objective: str) -> None:
+    def __init__(self, ctx: AttackContext, jobs: list[ExecutionJob]) -> None:
         super().__init__()
         self._ctx = ctx
-        self._attack_id = attack_id
-        self._objective = objective
+        self._jobs = jobs
         self._log_handler: ScreenLogHandler | None = None
 
     def compose(self) -> ComposeResult:
         yield Header()
-        yield Label(f"  {self._attack_id}", id="lbl-attack")
-        yield Label(f"  {self._objective[:90]}", id="lbl-objective")
+        yield Label("", id="lbl-attack")
+        yield Label("", id="lbl-objective")
         with Horizontal(id="exec-body"):
             with Vertical(id="exec-left"):
                 yield ConversationLog(id="conv-log")
@@ -57,7 +67,8 @@ class ExecutionScreen(Screen):
     def on_mount(self) -> None:
         self._log_handler = ScreenLogHandler(self.app, self._on_log_record)
         logging.getLogger("promptmap").addHandler(self._log_handler)
-        self.run_worker(self._attack_worker(), exclusive=True)
+        self._update_job_header(0)
+        self.run_worker(self._batch_worker(), exclusive=True)
 
     def on_unmount(self) -> None:
         if self._log_handler is not None:
@@ -72,19 +83,32 @@ class ExecutionScreen(Screen):
             # callback running on the app thread — drop the record silently.
             pass
 
-    async def _attack_worker(self) -> None:
-        attack = self._ctx.available_attacks.get(self._attack_id)
-        if attack is None:
-            self.post_message(self.Progress(
-                ProgressEvent(type=EVT_ERROR, data={"text": f"Unknown attack: {self._attack_id}"})
-            ))
-            return
+    # ------------------------------------------------------------------ #
+    #  Header / progress label updates                                     #
+    # ------------------------------------------------------------------ #
 
+    def _update_job_header(self, idx: int) -> None:
+        if not self._jobs or idx >= len(self._jobs):
+            return
+        job = self._jobs[idx]
+        total = len(self._jobs)
+        self.query_one("#lbl-attack", Label).update(
+            f"  [{idx + 1}/{total}] {job.attack_id}"
+        )
+        self.query_one("#lbl-objective", Label).update(
+            f"  {job.objective[:90]}"
+        )
+
+    # ------------------------------------------------------------------ #
+    #  Worker                                                              #
+    # ------------------------------------------------------------------ #
+
+    async def _batch_worker(self) -> None:
         queue = self._ctx.progress_queue
-        attack_done = asyncio.Event()
+        all_done = asyncio.Event()
 
         async def drain() -> None:
-            while not attack_done.is_set():
+            while not all_done.is_set():
                 while not queue.empty():
                     self.post_message(self.Progress(queue.get_nowait()))
                 await asyncio.sleep(0.02)
@@ -92,19 +116,63 @@ class ExecutionScreen(Screen):
                 self.post_message(self.Progress(queue.get_nowait()))
 
         drain_task = asyncio.create_task(drain())
+        achieved_count = 0
+
         try:
-            result = await attack.run(self._ctx, self._objective)
-            self._ctx.memory.save_result(result)
-        except Exception as exc:
-            self.post_message(self.Progress(
-                ProgressEvent(type=EVT_ERROR, data={"text": str(exc)})
-            ))
+            for idx, job in enumerate(self._jobs):
+                # Worker runs on the app's event loop thread, so update widgets
+                # directly. `call_from_thread` is only for true off-thread callers.
+                self._update_job_header(idx)
+                attack = self._ctx.available_attacks.get(job.attack_id)
+                if attack is None:
+                    self.post_message(self.Progress(ProgressEvent(
+                        type=EVT_ERROR,
+                        data={"text": f"Unknown attack: {job.attack_id}"},
+                    )))
+                    continue
+
+                self.post_message(self.Progress(ProgressEvent(
+                    type=EVT_INFO,
+                    data={"text": (
+                        f"── Job {idx + 1}/{len(self._jobs)}: {job.attack_id} "
+                        f"— {job.objective[:80]}"
+                    )},
+                )))
+
+                try:
+                    result = await attack.run(
+                        self._ctx,
+                        job.objective,
+                        prompt_technique=job.prompt_technique,
+                    )
+                    if job.technique_id:
+                        result.atlas_techniques = [job.technique_id]
+                    if job.prompt_technique:
+                        result.metadata.setdefault("prompt_technique", job.prompt_technique)
+                    self._ctx.memory.save_result(result)
+                    if result.achieved:
+                        achieved_count += 1
+                except Exception as exc:
+                    self.post_message(self.Progress(ProgressEvent(
+                        type=EVT_ERROR,
+                        data={"text": f"{job.attack_id}: {exc}"},
+                    )))
         finally:
-            attack_done.set()
+            self.post_message(self.Progress(ProgressEvent(
+                type=EVT_INFO,
+                data={"text": (
+                    f"=== All jobs complete: {achieved_count}/{len(self._jobs)} achieved ==="
+                )},
+            )))
+            all_done.set()
             await drain_task
             # Playwright のブラウザプロセス等は asyncio loop が閉じる前に
             # 解放しておかないと、終了時に "Event loop is closed" 警告が出る。
             await self._ctx.close_all_targets()
+
+    # ------------------------------------------------------------------ #
+    #  Progress event rendering                                            #
+    # ------------------------------------------------------------------ #
 
     def on_execution_screen_progress(self, message: "ExecutionScreen.Progress") -> None:
         evt = message.event

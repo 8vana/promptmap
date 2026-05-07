@@ -22,7 +22,7 @@ class ProgressEvent:
 
 
 def fmt_cli(event: ProgressEvent) -> None:
-    """CLI fallback: print a ProgressEvent to stdout with colorama formatting."""
+    """Stdout fallback: print a ProgressEvent when no TUI progress queue is set."""
     from colorama import Fore, Style
     d = event.data
     t = event.turn

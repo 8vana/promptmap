@@ -12,7 +12,7 @@ from textual.containers import Container, Horizontal
 from engine.context import AttackContext
 from engine.events import (
     EVT_AGENT_ACTION, EVT_AGENT_DONE, EVT_COMPLETE, EVT_ERROR,
-    EVT_PROMPT, EVT_RESPONSE, EVT_SCORE,
+    EVT_INFO, EVT_PROMPT, EVT_RESPONSE, EVT_SCORE,
     ProgressEvent,
 )
 from tui.widgets.activity_log import ActivityLog
@@ -104,6 +104,11 @@ class AgentScanScreen(Screen):
 
     async def _agent_worker(self, ctx: AttackContext, objective: str) -> None:
         from attacks.agent.attack_agent import AttackAgent
+        from engine.logging_setup import get_logger
+        _wlog = get_logger("tui.agent_scan")
+        _wlog.info("agent worker: started (lang=%s, target_type=%s)",
+                   ctx.language, type(ctx.target).__name__)
+
         agent = AttackAgent()
         queue = ctx.progress_queue
         done_event = asyncio.Event()
@@ -117,19 +122,25 @@ class AgentScanScreen(Screen):
                 self.post_message(self.Progress(queue.get_nowait()))
 
         drain_task = asyncio.create_task(drain())
+        _wlog.info("agent worker: drain task scheduled, calling agent.run()")
         try:
-            result = await agent.run(ctx, objective)
-            ctx.memory.save_result(result)
+            # AttackAgent.run() returns a list, and saves each AttackResult to
+            # ctx.memory itself as it goes — no need to re-save here.
+            await agent.run(ctx, objective)
+            _wlog.info("agent worker: agent.run() returned normally")
         except Exception as exc:
+            _wlog.exception("agent worker: agent.run() raised")
             self.post_message(self.Progress(
                 ProgressEvent(type=EVT_ERROR, data={"text": str(exc)})
             ))
         finally:
+            _wlog.info("agent worker: tearing down")
             done_event.set()
             await drain_task
             # Playwright のブラウザプロセス等は asyncio loop が閉じる前に
             # 解放しておかないと、終了時に "Event loop is closed" 警告が出る。
             await ctx.close_all_targets()
+            _wlog.info("agent worker: teardown complete")
 
         self.query_one("#btn-start", Button).disabled = False
 
@@ -142,7 +153,14 @@ class AgentScanScreen(Screen):
             t = Text()
             t.append("[Agent] → ", style="bold cyan")
             t.append(evt.data.get("attack", ""), style="cyan")
+            ptech = evt.data.get("prompt_technique") or ""
+            if ptech:
+                t.append(f" [{ptech}]", style="bold magenta")
             t.append(f"  {evt.data.get('objective', '')[:80]}", style="dim")
+            log.write(t)
+        elif evt.type == EVT_INFO:
+            t = Text()
+            t.append(str(evt.data.get("text", "")), style="dim cyan")
             log.write(t)
         elif evt.type == EVT_PROMPT:
             t = Text()

@@ -1,8 +1,5 @@
-converter_type: native
-description: Native converter implementations — no PyRIT dependency
+description: Native converter implementations — stdlib only
 converters:
- - name: None
-   description: コンバーターを使用しない。
  - name: AnsiAttackConverter
    description: ANSI 制御文字（カラーコードやカーソル移動シーケンス）をランダムに挿入し、ログ解析系を混乱させる。
  - name: AsciiSmugglerConverter
@@ -42,7 +39,7 @@ converters:
  - name: SearchReplaceConverter
    description: 正規表現による検索・置換ルールに基づいてプロンプトを動的変換。
  - name: StringJoinConverter
-   description: 各文字をセパレータで連結し、パーサーの境界検出を混乱させる（例: t-e-s-t）。
+   description: 各文字をセパレータで連結し、パーサーの境界検出を混乱させる（例：t-e-s-t）。
  - name: SuffixAppendConverter
    description: プロンプトの末尾に定型サフィックスを付与し、プロンプトガードをバイパス。
  - name: TextToHexConverter

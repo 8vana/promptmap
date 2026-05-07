@@ -21,6 +21,7 @@ class AttackContext:
     memory: "SessionMemory"
     available_attacks: dict = field(default_factory=dict)  # dict[str, BaseAttack]
     progress_queue: asyncio.Queue | None = None            # TUI progress channel
+    language: str = "en"                  # Target language for adversarial payloads / agent lookups
 
     async def emit(self, event: "ProgressEvent") -> None:
         """Push a ProgressEvent to the TUI queue, or fall back to CLI print."""
