@@ -1,4 +1,4 @@
-"""Native converter implementations — stdlib only, no PyRIT dependency."""
+"""Native converter implementations — stdlib only."""
 import base64
 import codecs
 import math

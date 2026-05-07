@@ -1,6 +1,4 @@
-inquirer
 colorama
-pillow
 textual
 httpx
 playwright

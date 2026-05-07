@@ -135,6 +135,39 @@ Footer {
     margin-left: 1;
 }
 
+/* ─── Validation Error ─── */
+
+ValidationErrorScreen {
+    align: center middle;
+}
+#validation-dialog {
+    width: 90%;
+    height: auto;
+    max-height: 80%;
+    background: #1a1428;
+    border: round #cc5566;
+    padding: 1 2;
+    margin: 2;
+}
+#validation-dialog .panel-title {
+    color: #ff6677;
+    text-style: bold;
+}
+#validation-errors {
+    height: auto;
+    max-height: 30;
+    background: #0f0f1a;
+    border: tall #2a2a55;
+    padding: 1 2;
+    margin: 1 0;
+    color: #ffaa99;
+}
+#validation-buttons {
+    height: 5;
+    align: center middle;
+    padding: 1 0 0 0;
+}
+
 /* ─── File Picker (modal) ─── */
 FilePickerScreen {
     align: center middle;
@@ -339,8 +372,15 @@ Button:disabled {
 
 /* ─── Agent Scan ─── */
 
+/* `height: auto` was being mis-resolved to nearly the full screen height by
+   Textual's flex layout (agent-log/activity-log got crushed to 2 rows each).
+   Pinning to a fixed height keeps the form compact and lets the logs below
+   take their fr-share of the remaining vertical space. Form content (border +
+   padding + title + objective label/input + buttons row + status label) needs
+   ≈15 rows; bumping to 16 leaves a one-row buffer so a status update doesn't
+   overflow. */
 #agent-form {
-    height: auto;
+    height: 16;
     background: #141428;
     border: round #2a2a55;
     padding: 1 2;

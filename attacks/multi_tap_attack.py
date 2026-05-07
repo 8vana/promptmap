@@ -9,6 +9,7 @@ from engine.events import (
     EVT_SCORE, EVT_ACHIEVED, EVT_COMPLETE,
 )
 from engine.models import AttackResult, Message
+from utils import build_language_directive, build_technique_guidance
 
 ATTACK_NAME = "Multi_TAP_Attack"
 
@@ -80,12 +81,15 @@ class TAPAttack(BaseAttack):
         branching_factor = kwargs.get("branching_factor", self.branching_factor)
         on_topic_check = kwargs.get("on_topic_check", self.on_topic_check)
         threshold = kwargs.get("threshold", self.threshold)
+        prompt_technique = kwargs.get("prompt_technique", "")
+        guidance_suffix = build_technique_guidance(prompt_technique)
+        guidance_suffix += build_language_directive(ctx.language)
 
         await ctx.emit(ProgressEvent(EVT_INFO, data={
             "text": f"[TAP] Objective: {objective} | width={width} depth={depth} bf={branching_factor}"
         }))
 
-        nodes = [_new_branch(ctx, objective) for _ in range(width)]
+        nodes = [_new_branch(ctx, objective, guidance_suffix) for _ in range(width)]
 
         best_branch: _Branch | None = None
         best_score = 0.0
@@ -97,7 +101,7 @@ class TAPAttack(BaseAttack):
 
             if iteration > 1:
                 clones = [
-                    _clone_branch(node, ctx, objective)
+                    _clone_branch(node, ctx, objective, guidance_suffix)
                     for node in nodes
                     for _ in range(branching_factor - 1)
                 ]
@@ -145,15 +149,18 @@ class TAPAttack(BaseAttack):
         )
 
 
-def _new_branch(ctx: AttackContext, objective: str) -> _Branch:
+def _new_branch(ctx: AttackContext, objective: str, guidance_suffix: str = "") -> _Branch:
     branch = _Branch(adv_conv_id=str(uuid4()), obj_conv_id=str(uuid4()))
     ctx.adversarial_target.set_system_prompt(
-        _ATTACKER_SYSTEM_PROMPT.format(objective=objective), branch.adv_conv_id
+        _ATTACKER_SYSTEM_PROMPT.format(objective=objective) + guidance_suffix,
+        branch.adv_conv_id,
     )
     return branch
 
 
-def _clone_branch(parent: _Branch, ctx: AttackContext, objective: str) -> _Branch:
+def _clone_branch(
+    parent: _Branch, ctx: AttackContext, objective: str, guidance_suffix: str = "",
+) -> _Branch:
     clone = _Branch(
         adv_conv_id=str(uuid4()),
         obj_conv_id=str(uuid4()),
@@ -163,7 +170,8 @@ def _clone_branch(parent: _Branch, ctx: AttackContext, objective: str) -> _Branc
         last_rationale=parent.last_rationale,
     )
     ctx.adversarial_target.set_system_prompt(
-        _ATTACKER_SYSTEM_PROMPT.format(objective=objective), clone.adv_conv_id
+        _ATTACKER_SYSTEM_PROMPT.format(objective=objective) + guidance_suffix,
+        clone.adv_conv_id,
     )
     return clone
 

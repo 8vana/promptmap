@@ -164,8 +164,12 @@ cython_debug/
 promptmap_config.json
 promptmap/
 .idea/setup_env.local.sh
-examples/browser_target_example.yaml
-setup_env.local.sh
+
+# Personal config files — anything matching *.local.* is gitignored.
+# Convention: copy <name>.yaml.example to <name>.local.yaml and edit.
+*.local.yaml
+*.local.yml
+*.local.sh
 
 # promptmap runtime logs / conversation telemetry (local only)
 .promptmap/

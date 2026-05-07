@@ -8,6 +8,7 @@ from engine.events import (
     EVT_SCORE, EVT_ACHIEVED, EVT_COMPLETE,
 )
 from engine.models import AttackResult, Message
+from utils import build_language_directive, build_technique_guidance
 
 ATTACK_NAME = "Multi_PAIR_Attack"
 
@@ -50,6 +51,7 @@ class PAIRAttack(BaseAttack):
     async def run(self, ctx: AttackContext, objective: str, **kwargs) -> AttackResult:
         max_iterations = kwargs.get("max_iterations", self.max_iterations)
         threshold = kwargs.get("threshold", self.threshold)
+        prompt_technique = kwargs.get("prompt_technique", "")
 
         adv_conv_id = str(uuid4())
         conversation: list[Message] = []
@@ -58,6 +60,8 @@ class PAIRAttack(BaseAttack):
         last_rationale = ""
 
         system_prompt = _ATTACKER_SYSTEM_PROMPT.format(objective=objective)
+        system_prompt += build_technique_guidance(prompt_technique)
+        system_prompt += build_language_directive(ctx.language)
         ctx.adversarial_target.set_system_prompt(system_prompt, adv_conv_id)
 
         await ctx.emit(ProgressEvent(EVT_INFO, data={"text": f"[PAIR] Objective: {objective}"}))

@@ -28,16 +28,17 @@ _DEFAULT_SETTINGS: dict = {
     "adv_llm_name":       "",
     "score_llm_provider": "openai",
     "score_llm_name":     "",
+    "target_language":    "en",
 }
 
 # Setting key -> environment variable name. When the env var is set,
 # its value overrides whatever was loaded from _CONFIG_FILE.
-# Kept in sync with PromptMapInteractiveShell._ENV_OVERRIDES in promptmap.py.
 _ENV_OVERRIDES: dict[str, str] = {
     "adv_llm_provider":   "PROMPTMAP_ADV_LLM_PROVIDER",
     "adv_llm_name":       "PROMPTMAP_ADV_LLM_NAME",
     "score_llm_provider": "PROMPTMAP_SCORE_LLM_PROVIDER",
     "score_llm_name":     "PROMPTMAP_SCORE_LLM_NAME",
+    "target_language":    "PROMPTMAP_TARGET_LANGUAGE",
 }
 
 
@@ -60,6 +61,12 @@ class PromptMapApp(App):
     # ------------------------------------------------------------------ #
 
     def on_mount(self) -> None:
+        from utils import validate_dataset_references
+        errors = validate_dataset_references()
+        if errors:
+            from tui.screens.validation_error import ValidationErrorScreen
+            self.push_screen(ValidationErrorScreen(errors))
+            return
         from tui.screens.home import HomeScreen
         self.push_screen(HomeScreen())
 
@@ -192,4 +199,5 @@ class PromptMapApp(App):
             memory=self.session_memory,
             available_attacks=available_attacks,
             progress_queue=asyncio.Queue(),
+            language=s.get("target_language", "en"),
         )

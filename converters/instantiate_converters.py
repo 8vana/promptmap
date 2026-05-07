@@ -15,9 +15,6 @@ def instantiate_converters(names: List[str]) -> List[BaseConverter]:
     instances: List[BaseConverter] = []
 
     for name in names:
-        if name == "None":
-            break
-
         cls = get_converter_class(name)
         kwargs = DEFAULT_CONVERTER_ARGS.get(name, {})
 

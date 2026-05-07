@@ -5,6 +5,7 @@ from textual.widgets import Button, Footer, Header, Input, Label, RadioSet, Radi
 from textual.containers import Container, Horizontal, VerticalScroll
 
 from targets.factory import get_available_providers, get_missing_env_vars, PROVIDER_LABELS
+from utils import LANGUAGE_DISPLAY_NAMES, SUPPORTED_LANGUAGES
 
 _HTTP_FIELDS = [
     ("api_endpoint",  "Target API Endpoint",           "http://localhost:8000/chat"),
@@ -98,8 +99,22 @@ class SettingsScreen(Screen):
             yield Label("Score LLM Model Name", classes="field-label")
             yield Input(placeholder="e.g. gpt-4o-mini / claude-3-5-sonnet-20241022", id="score_llm_name")
 
+            # ── Target language ────────────────────────────────────────
+            yield Label("Target Language", classes="field-label")
+            with RadioSet(id="target-language-radio"):
+                for lang in SUPPORTED_LANGUAGES:
+                    yield RadioButton(
+                        f"{LANGUAGE_DISPLAY_NAMES.get(lang, lang)} ({lang})",
+                        id=f"lang-{lang}",
+                    )
             yield Label(
-                "API keys are read from environment variables. See setup_env.sh for details.",
+                "Determines which language signatures / jailbreak templates / response "
+                "encodings are used. Falls back to English when a translation is missing.",
+                classes="field-label",
+            )
+
+            yield Label(
+                "API keys are read from environment variables. See setup_env.sh.example for details.",
                 classes="field-label",
             )
 
@@ -129,6 +144,12 @@ class SettingsScreen(Screen):
         self._select_provider("adv",   adv_provider)
         self._select_provider("score", score_provider)
 
+        # Restore saved target_language selection
+        target_lang = s.get("target_language", "en")
+        if target_lang not in SUPPORTED_LANGUAGES:
+            target_lang = "en"
+        self._select_language(target_lang)
+
     def _apply_target_type(self, target_type: str) -> None:
         """Toggle the HTTP / Browser sections via Textual's standard
         `widget.display` property only.
@@ -153,6 +174,21 @@ class SettingsScreen(Screen):
                 btn.value = True
         except Exception:
             pass
+
+    def _select_language(self, lang: str) -> None:
+        try:
+            self.query_one(f"#lang-{lang}", RadioButton).value = True
+        except Exception:
+            pass
+
+    def _selected_language(self) -> str:
+        for lang in SUPPORTED_LANGUAGES:
+            try:
+                if self.query_one(f"#lang-{lang}", RadioButton).value:
+                    return lang
+            except Exception:
+                pass
+        return "en"
 
     def _selected_provider(self, radio_id: str) -> str:
         """Return the provider key for the currently selected RadioButton."""
@@ -181,6 +217,7 @@ class SettingsScreen(Screen):
             updates["score_llm_provider"] = self._selected_provider("score-provider-radio")
             updates["adv_llm_name"]       = self.query_one("#adv_llm_name",   Input).value
             updates["score_llm_name"]     = self.query_one("#score_llm_name", Input).value
+            updates["target_language"]    = self._selected_language()
 
             self.app.update_settings(updates)
 
