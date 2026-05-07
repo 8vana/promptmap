@@ -1,7 +1,7 @@
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.screen import Screen
-from textual.widgets import Button, Footer, Header, Input, Label, RadioSet, RadioButton
+from textual.widgets import Button, Footer, Header, Input, Label, RadioSet, RadioButton, Static
 from textual.containers import Container, Horizontal, VerticalScroll
 
 from targets.factory import get_available_providers, get_missing_env_vars, PROVIDER_LABELS
@@ -107,13 +107,16 @@ class SettingsScreen(Screen):
                         f"{LANGUAGE_DISPLAY_NAMES.get(lang, lang)} ({lang})",
                         id=f"lang-{lang}",
                     )
-            yield Label(
+            # Use Static (not Label) for prose: Static auto-wraps to the parent
+            # width, while Label expands to its content and gets clipped on narrow
+            # terminals.
+            yield Static(
                 "Determines which language signatures / jailbreak templates / response "
                 "encodings are used. Falls back to English when a translation is missing.",
                 classes="field-label",
             )
 
-            yield Label(
+            yield Static(
                 "API keys are read from environment variables. See setup_env.sh.example for details.",
                 classes="field-label",
             )

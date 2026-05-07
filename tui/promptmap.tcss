@@ -46,7 +46,7 @@ Footer {
 }
 
 #status-panel {
-    height: 7;
+    height: 8;
     background: #141428;
     border: round #2a2a55;
     padding: 1 2;
