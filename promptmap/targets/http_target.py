@@ -2,7 +2,7 @@ import json
 
 import httpx
 
-from engine.base_target import TargetAdapter
+from promptmap.engine.base_target import TargetAdapter
 
 
 class HTTPTargetAdapter(TargetAdapter):

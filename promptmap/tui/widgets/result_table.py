@@ -1,6 +1,6 @@
 from textual.widgets import DataTable
 
-from engine.models import AttackResult
+from promptmap.engine.models import AttackResult
 
 
 class ResultTable(DataTable):

@@ -7,8 +7,8 @@ import uuid
 from google import genai
 from google.genai import types
 
-from engine.base_target import TargetAdapter
-from engine.tool_call import (
+from promptmap.engine.base_target import TargetAdapter
+from promptmap.engine.tool_call import (
     ToolCall, ToolCallFunction, ToolCallMessage, ToolCallChoice, ToolCallResponse,
 )
 

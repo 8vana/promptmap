@@ -5,9 +5,9 @@ from textual.screen import Screen
 from textual.widgets import Button, DataTable, Footer, Header, Label
 from textual.containers import Container, Horizontal
 
-from engine.models import AttackResult
-from tui.widgets.result_table import ResultTable
-from tui.widgets.smart_rich_log import SmartScrollRichLog
+from promptmap.engine.models import AttackResult
+from promptmap.tui.widgets.result_table import ResultTable
+from promptmap.tui.widgets.smart_rich_log import SmartScrollRichLog
 
 
 class ResultsScreen(Screen):

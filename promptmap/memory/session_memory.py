@@ -1,7 +1,7 @@
 import json
 from dataclasses import asdict
 
-from engine.models import AttackResult
+from promptmap.engine.models import AttackResult
 
 
 class SessionMemory:

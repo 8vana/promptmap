@@ -4,8 +4,8 @@ from textual.screen import Screen
 from textual.widgets import Button, Footer, Header, Input, Label, RadioSet, RadioButton, Static
 from textual.containers import Container, Horizontal, VerticalScroll
 
-from targets.factory import get_available_providers, get_missing_env_vars, PROVIDER_LABELS
-from utils import LANGUAGE_DISPLAY_NAMES, SUPPORTED_LANGUAGES
+from promptmap.targets.factory import get_available_providers, get_missing_env_vars, PROVIDER_LABELS
+from promptmap.utils import LANGUAGE_DISPLAY_NAMES, SUPPORTED_LANGUAGES
 
 _HTTP_FIELDS = [
     ("api_endpoint",  "Target API Endpoint",           "http://localhost:8000/chat"),
@@ -248,7 +248,7 @@ class SettingsScreen(Screen):
 
     def _open_file_picker(self) -> None:
         """Open the YAML file picker modal and put the chosen path into the input."""
-        from tui.screens.file_picker import FilePickerScreen
+        from promptmap.tui.screens.file_picker import FilePickerScreen
         current = self.query_one("#browser_config_path", Input).value
 
         def _on_dismiss(picked: str | None) -> None:

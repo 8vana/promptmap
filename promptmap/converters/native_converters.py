@@ -8,7 +8,7 @@ import string
 import urllib.parse
 from typing import Dict, List, Optional
 
-from converters.base_converter import BaseConverter
+from promptmap.converters.base_converter import BaseConverter
 
 
 class AnsiAttackConverter(BaseConverter):

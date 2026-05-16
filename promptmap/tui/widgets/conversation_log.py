@@ -1,6 +1,6 @@
 from rich.text import Text
 
-from tui.widgets.smart_rich_log import SmartScrollRichLog
+from promptmap.tui.widgets.smart_rich_log import SmartScrollRichLog
 
 
 class ConversationLog(SmartScrollRichLog):

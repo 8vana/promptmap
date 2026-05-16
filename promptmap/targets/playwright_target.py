@@ -5,14 +5,14 @@ import logging
 import time
 from typing import TYPE_CHECKING
 
-from engine.base_target import TargetAdapter
-from engine.logging_setup import get_logger
+from promptmap.engine.base_target import TargetAdapter
+from promptmap.engine.logging_setup import get_logger
 
 if TYPE_CHECKING:
     from playwright.async_api import (
         Browser, BrowserContext, ConsoleMessage, Page, Playwright, Request,
     )
-    from targets.browser_config import BrowserTargetConfig, NavigationStep
+    from promptmap.targets.browser_config import BrowserTargetConfig, NavigationStep
 
 
 _logger = get_logger("targets.playwright")

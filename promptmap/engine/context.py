@@ -5,11 +5,11 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from engine.base_attack import BaseAttack
-    from engine.base_scorer import BaseScorer
-    from engine.base_target import TargetAdapter
-    from engine.events import ProgressEvent
-    from memory.session_memory import SessionMemory
+    from promptmap.engine.base_attack import BaseAttack
+    from promptmap.engine.base_scorer import BaseScorer
+    from promptmap.engine.base_target import TargetAdapter
+    from promptmap.engine.events import ProgressEvent
+    from promptmap.memory.session_memory import SessionMemory
 
 
 @dataclass
@@ -28,7 +28,7 @@ class AttackContext:
         if self.progress_queue is not None:
             await self.progress_queue.put(event)
         else:
-            from engine.events import fmt_cli
+            from promptmap.engine.events import fmt_cli
             fmt_cli(event)
 
     async def close_all_targets(self) -> None:
@@ -39,7 +39,7 @@ class AttackContext:
         before the asyncio loop is torn down. Each close() is best-effort —
         failures are logged but never re-raised.
         """
-        from engine.logging_setup import get_logger
+        from promptmap.engine.logging_setup import get_logger
         log = get_logger("engine.context")
 
         # Scorer's judge_target may be wrapped behind .judge attribute or _judge

@@ -44,7 +44,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterator
 
-from engine.logging_setup import get_logger
+from promptmap.engine.logging_setup import get_logger
 
 _logger = get_logger(__name__)
 

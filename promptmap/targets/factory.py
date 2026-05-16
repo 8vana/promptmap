@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 
-from engine.base_target import TargetAdapter
+from promptmap.engine.base_target import TargetAdapter
 
 # ---------------------------------------------------------------------------
 # Provider metadata
@@ -59,14 +59,14 @@ def get_missing_env_vars(provider: str) -> list[str]:
 def create_target_adapter(provider: str, model: str) -> TargetAdapter:
     """Instantiate the appropriate TargetAdapter for the given provider."""
     if provider == "openai":
-        from targets.openai_target import OpenAITargetAdapter
+        from promptmap.targets.openai_target import OpenAITargetAdapter
         return OpenAITargetAdapter(
             model=model,
             api_key=os.getenv("OPENAI_API_KEY", ""),
         )
 
     if provider == "ollama":
-        from targets.openai_target import OpenAITargetAdapter
+        from promptmap.targets.openai_target import OpenAITargetAdapter
         return OpenAITargetAdapter(
             model=model,
             api_key="ollama",
@@ -74,18 +74,18 @@ def create_target_adapter(provider: str, model: str) -> TargetAdapter:
         )
 
     if provider == "anthropic":
-        from targets.anthropic_target import AnthropicTargetAdapter
+        from promptmap.targets.anthropic_target import AnthropicTargetAdapter
         return AnthropicTargetAdapter(
             model=model,
             api_key=os.getenv("ANTHROPIC_API_KEY", ""),
         )
 
     if provider == "gemini":
-        from targets.gemini_target import GeminiTargetAdapter
+        from promptmap.targets.gemini_target import GeminiTargetAdapter
         return GeminiTargetAdapter(model=model)
 
     if provider == "bedrock":
-        from targets.bedrock_target import BedrockTargetAdapter
+        from promptmap.targets.bedrock_target import BedrockTargetAdapter
         return BedrockTargetAdapter(
             model=model,
             region=os.getenv("AWS_REGION", "us-east-1"),

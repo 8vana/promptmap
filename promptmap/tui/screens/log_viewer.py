@@ -25,7 +25,7 @@ from textual.widgets import (
     Button, Footer, Header, Label, Select, TabbedContent, TabPane,
 )
 
-from tui.widgets.smart_rich_log import SmartScrollRichLog
+from promptmap.tui.widgets.smart_rich_log import SmartScrollRichLog
 
 
 _LOG_FILE = Path(os.path.expanduser("~/.promptmap/logs/promptmap.log"))

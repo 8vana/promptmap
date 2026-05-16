@@ -26,8 +26,8 @@ from textual.widgets import (
     SelectionList, Static, TextArea,
 )
 
-from converters.instantiate_converters import instantiate_converters
-from utils import (
+from promptmap.converters.instantiate_converters import instantiate_converters
+from promptmap.utils import (
     apply_jailbreak_method, apply_response_converter_method,
     list_converters, list_jailbreak_templates, list_response_converters,
     load_atlas_catalog, load_dataset, load_jailbreak_template,
@@ -119,7 +119,8 @@ class ManualScanScreen(Screen):
                 yield Label("Custom prompts (optional, one per line):", classes="field-label")
                 yield TextArea("", id="custom-prompts-input")
                 yield Label(
-                    "Prompt technique to apply to custom prompts (optional):",
+                    "Prompt technique to apply to custom prompts (optional, "
+                    "applies to multi-turn attacks only):",
                     classes="field-label",
                 )
                 yield Select(
@@ -499,7 +500,7 @@ class ManualScanScreen(Screen):
         # Build the job list — multi-turn attacks always use raw prompts; Single_* uses
         # the jailbreak/response-encoding-wrapped variant. The prompt_technique is
         # carried through to bias multi-turn adv-LLM strategy in the attack class.
-        from tui.screens.execution import ExecutionJob, ExecutionScreen
+        from promptmap.tui.screens.execution import ExecutionJob, ExecutionScreen
 
         jobs: list[ExecutionJob] = []
         for attack_id in self._sel_attacks:

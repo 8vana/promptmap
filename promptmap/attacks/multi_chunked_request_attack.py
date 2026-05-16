@@ -1,12 +1,12 @@
 from uuid import uuid4
 
-from engine.base_attack import BaseAttack
-from engine.context import AttackContext
-from engine.events import (
+from promptmap.engine.base_attack import BaseAttack
+from promptmap.engine.context import AttackContext
+from promptmap.engine.events import (
     ProgressEvent, EVT_INFO, EVT_PROMPT, EVT_RESPONSE,
     EVT_SCORE, EVT_ACHIEVED, EVT_COMPLETE,
 )
-from engine.models import AttackResult, Message
+from promptmap.engine.models import AttackResult, Message
 
 ATTACK_NAME = "Multi_Chunked_Request_Attack"
 

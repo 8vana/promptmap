@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 
-from engine.tool_call import ToolCallResponse
+from promptmap.engine.tool_call import ToolCallResponse
 
 
 class TargetAdapter(ABC):

@@ -9,15 +9,15 @@ from textual.screen import Screen
 from textual.widgets import Button, Footer, Header, Input, Label
 from textual.containers import Container, Horizontal
 
-from engine.context import AttackContext
-from engine.events import (
+from promptmap.engine.context import AttackContext
+from promptmap.engine.events import (
     EVT_AGENT_ACTION, EVT_AGENT_DONE, EVT_COMPLETE, EVT_ERROR,
     EVT_INFO, EVT_PROMPT, EVT_RESPONSE, EVT_SCORE,
     ProgressEvent,
 )
-from tui.widgets.activity_log import ActivityLog
-from tui.widgets.screen_log_handler import ScreenLogHandler
-from tui.widgets.smart_rich_log import SmartScrollRichLog
+from promptmap.tui.widgets.activity_log import ActivityLog
+from promptmap.tui.widgets.screen_log_handler import ScreenLogHandler
+from promptmap.tui.widgets.smart_rich_log import SmartScrollRichLog
 
 
 class AgentScanScreen(Screen):
@@ -103,8 +103,8 @@ class AgentScanScreen(Screen):
         self.run_worker(self._agent_worker(ctx, objective), exclusive=True)
 
     async def _agent_worker(self, ctx: AttackContext, objective: str) -> None:
-        from attacks.agent.attack_agent import AttackAgent
-        from engine.logging_setup import get_logger
+        from promptmap.attacks.agent.attack_agent import AttackAgent
+        from promptmap.engine.logging_setup import get_logger
         _wlog = get_logger("tui.agent_scan")
         _wlog.info("agent worker: started (lang=%s, target_type=%s)",
                    ctx.language, type(ctx.target).__name__)

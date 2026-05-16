@@ -51,7 +51,7 @@ class HomeScreen(Screen):
     def on_mount(self) -> None:
         self._refresh_status()
         self._refresh_results()
-        from proverb import get_random_proverb
+        from promptmap.tui.proverb import get_random_proverb
         self.notify(get_random_proverb(), title="Proverb", timeout=10)
 
     def _refresh_status(self) -> None:
@@ -98,23 +98,23 @@ class HomeScreen(Screen):
             action()
 
     def action_go_manual(self) -> None:
-        from tui.screens.manual_scan import ManualScanScreen
+        from promptmap.tui.screens.manual_scan import ManualScanScreen
         self.app.push_screen(ManualScanScreen())
 
     def action_go_agent(self) -> None:
-        from tui.screens.agent_scan import AgentScanScreen
+        from promptmap.tui.screens.agent_scan import AgentScanScreen
         self.app.push_screen(AgentScanScreen())
 
     def action_go_settings(self) -> None:
-        from tui.screens.settings import SettingsScreen
+        from promptmap.tui.screens.settings import SettingsScreen
         self.app.push_screen(SettingsScreen())
 
     def action_go_results(self) -> None:
-        from tui.screens.results import ResultsScreen
+        from promptmap.tui.screens.results import ResultsScreen
         self.app.push_screen(ResultsScreen())
 
     def action_go_logs(self) -> None:
-        from tui.screens.log_viewer import LogViewerScreen
+        from promptmap.tui.screens.log_viewer import LogViewerScreen
         self.app.push_screen(LogViewerScreen())
 
     def on_screen_resume(self) -> None:

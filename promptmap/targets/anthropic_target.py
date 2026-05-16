@@ -4,8 +4,8 @@ import json
 
 from anthropic import AsyncAnthropic
 
-from engine.base_target import TargetAdapter
-from engine.tool_call import (
+from promptmap.engine.base_target import TargetAdapter
+from promptmap.engine.tool_call import (
     ToolCall, ToolCallFunction, ToolCallMessage, ToolCallChoice, ToolCallResponse,
 )
 

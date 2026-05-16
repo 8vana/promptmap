@@ -1,8 +1,11 @@
 import pathlib
 from dataclasses import dataclass
-from typing import List, Tuple
+from typing import List, Tuple, Union
 
 import yaml
+
+# Package root — used to resolve bundled dataset / config paths regardless of cwd.
+PACKAGE_ROOT = pathlib.Path(__file__).resolve().parent
 
 JAILBREAK_PLACEHOLDER = "{{ prompt }}"
 
@@ -27,12 +30,14 @@ class JailbreakTemplate:
     is_fallback: bool = False           # True if requested language was missing
 
 
-def load_mapping(path: str) -> dict:
+def load_mapping(path: Union[str, pathlib.Path]) -> dict:
     with open(path, "r") as f:
         return yaml.safe_load(f)
 
 
-def load_atlas_catalog(path="config/atlas_catalog.yaml") -> dict:
+def load_atlas_catalog(path: Union[str, pathlib.Path, None] = None) -> dict:
+    if path is None:
+        path = PACKAGE_ROOT / "config" / "atlas_catalog.yaml"
     with open(path, "r") as f:
         return yaml.safe_load(f)
 
@@ -74,6 +79,19 @@ def _resolve_language(langs: dict, language: str) -> Tuple[str, str]:
     return "", ""
 
 
+def _prompt_entry_to_langs(prompt_entry: dict) -> dict:
+    """Extract ``{lang_code: text}`` from a flat prompt entry ``{en: "...", ja: "..."}``.
+
+    Only keys matching ``SUPPORTED_LANGUAGES`` with non-empty string values are
+    returned, so future schema extensions (e.g. per-prompt notes) won't be
+    misread as translations.
+    """
+    return {
+        k: v for k, v in prompt_entry.items()
+        if k in SUPPORTED_LANGUAGES and isinstance(v, str) and v
+    }
+
+
 def load_dataset(
     dataset_filename: str,
     atlas_technique_id: str,
@@ -81,27 +99,47 @@ def load_dataset(
 ) -> List[dict]:
     """Load adversarial prompts for an ATLAS technique, resolved to ``language``.
 
+    Reads the nested structure under the ``signatures:`` root key:
+
+        signatures:
+          - atlas_technique: <id>
+            prompt_techniques:
+              <Prompt_Technique_Name>:
+                prompts:
+                  - en: "..."
+                    ja: "..."
+
+    Each group corresponds to exactly one ATLAS technique. Prompts that apply
+    to multiple ATLAS techniques are duplicated across groups intentionally
+    to keep the data flat and the loader trivial.
+
     Returns ``[{value, prompt_technique, language_used, is_fallback}]``.
     Entries with no usable translation are silently dropped.
     """
-    path = pathlib.Path("datasets") / dataset_filename
+    path = PACKAGE_ROOT / "datasets" / dataset_filename
     with open(path, "r") as f:
         data = yaml.safe_load(f) or {}
 
     out: List[dict] = []
-    for entry in data.get("prompts", []) or []:
-        if atlas_technique_id not in (entry.get("atlas_techniques") or []):
+    for group in data.get("signatures", []) or []:
+        if group.get("atlas_technique") != atlas_technique_id:
             continue
-        langs = _normalize_languages(entry)
-        value, used = _resolve_language(langs, language)
-        if not value:
-            continue
-        out.append({
-            "value": value,
-            "prompt_technique": entry.get("prompt_technique", ""),
-            "language_used": used,
-            "is_fallback": used != language,
-        })
+        for tech_name, tech_body in (group.get("prompt_techniques") or {}).items():
+            if not isinstance(tech_body, dict):
+                continue
+            for prompt_entry in tech_body.get("prompts") or []:
+                if not isinstance(prompt_entry, dict):
+                    continue
+                langs = _prompt_entry_to_langs(prompt_entry)
+                value, used = _resolve_language(langs, language)
+                if not value:
+                    continue
+                out.append({
+                    "value": value,
+                    "prompt_technique": tech_name,
+                    "language_used": used,
+                    "is_fallback": used != language,
+                })
     return out
 
 
@@ -119,7 +157,7 @@ def apply_response_converter_method(prompts, response_converter=None):
 
 def list_converters() -> List[dict]:
     """Return all available prompt converters as [{'name', 'description'}]."""
-    loaded_yaml = load_mapping("converters/converters.yaml")
+    loaded_yaml = load_mapping(PACKAGE_ROOT / "converters" / "converters.yaml")
     return list(loaded_yaml["converters"])
 
 
@@ -170,9 +208,9 @@ def list_jailbreak_templates(language: str = BASE_LANGUAGE) -> List[JailbreakTem
     the wizard remains usable.
     """
     builtin_dir = _builtin_jailbreak_dir()
-    custom_dir = pathlib.Path("datasets/custom_jailbreaks").expanduser()
+    custom_dir = PACKAGE_ROOT / "datasets" / "custom_jailbreaks"
 
-    allowed = load_mapping("datasets/jailbreak_config.yaml")
+    allowed = load_mapping(PACKAGE_ROOT / "datasets" / "jailbreak_config.yaml")
     out: List[JailbreakTemplate] = []
     for fn in allowed.get("builtin_templates", []):
         p = builtin_dir / fn
@@ -197,7 +235,7 @@ def list_jailbreak_templates(language: str = BASE_LANGUAGE) -> List[JailbreakTem
 
 def list_response_converters(language: str = BASE_LANGUAGE) -> List[dict]:
     """Return response-encode prompts as [{'name', 'value', 'language_used', 'is_fallback'}]."""
-    loaded_yaml = load_mapping("datasets/response_encode.yaml")
+    loaded_yaml = load_mapping(PACKAGE_ROOT / "datasets" / "response_encode.yaml")
     out: List[dict] = []
     for entry in loaded_yaml.get("prompts", []) or []:
         langs = _normalize_languages(entry)
@@ -213,8 +251,10 @@ def list_response_converters(language: str = BASE_LANGUAGE) -> List[dict]:
     return out
 
 
-def load_prompt_techniques(path: str = "config/prompt_techniques.yaml") -> dict:
+def load_prompt_techniques(path: Union[str, pathlib.Path, None] = None) -> dict:
     """Return ``{technique_key: {description: str}}`` from prompt_techniques.yaml."""
+    if path is None:
+        path = PACKAGE_ROOT / "config" / "prompt_techniques.yaml"
     return load_mapping(path).get("prompt_techniques", {})
 
 
@@ -339,38 +379,93 @@ def validate_dataset_references() -> List[str]:
                     f"compatible_attack '{atk}' (not registered in tui/app.py)"
                 )
 
-    # 2) signatures: each entry's atlas_techniques + prompt_technique + languages must be known.
-    sig_path = pathlib.Path("datasets/signatures.yaml")
+    # 2) signatures: nested structure
+    #    signatures:
+    #      - atlas_technique: <id>
+    #        prompt_techniques:
+    #          <Technique_Name>:
+    #            prompts:
+    #              - en: "..."
+    #                ja: "..."
+    sig_path = PACKAGE_ROOT / "datasets" / "signatures.yaml"
     try:
         with open(sig_path) as f:
             sig_data = yaml.safe_load(f) or {}
     except Exception as e:
         errors.append(f"datasets/signatures.yaml: failed to load ({e})")
         sig_data = {}
-    for i, entry in enumerate(sig_data.get("prompts") or [], start=1):
-        # Build a preview from any available translation for error messages.
-        langs_preview = _normalize_languages(entry)
-        preview_text = next(iter(langs_preview.values()), "")[:60].replace("\n", " ")
-        where = f"signatures.yaml entry #{i} ('{preview_text}…')"
-
-        atlas_ids = entry.get("atlas_techniques") or []
-        if not atlas_ids:
-            errors.append(f"{where}: atlas_techniques is empty")
-        for aid in atlas_ids:
-            if aid not in valid_atlas_ids:
-                errors.append(
-                    f"{where}: unknown atlas_technique '{aid}' (not in atlas_catalog.yaml)"
-                )
-        ptech = entry.get("prompt_technique")
-        if ptech and ptech not in valid_tech_keys:
+    for gi, group in enumerate(sig_data.get("signatures") or [], start=1):
+        group_where = f"signatures.yaml group #{gi}"
+        atlas_id = group.get("atlas_technique")
+        if not atlas_id:
+            errors.append(f"{group_where}: atlas_technique is empty")
+        elif not isinstance(atlas_id, str):
             errors.append(
-                f"{where}: unknown prompt_technique '{ptech}' (not in prompt_techniques.yaml)"
+                f"{group_where}: atlas_technique must be a single string "
+                f"(got {type(atlas_id).__name__})"
             )
-        errors.extend(_validate_languages_block(entry, where))
+        elif atlas_id not in valid_atlas_ids:
+            errors.append(
+                f"{group_where}: unknown atlas_technique '{atlas_id}' "
+                "(not in atlas_catalog.yaml)"
+            )
+
+        pt_map = group.get("prompt_techniques")
+        if pt_map is None:
+            errors.append(f"{group_where}: missing 'prompt_techniques' field")
+            continue
+        if not isinstance(pt_map, dict):
+            errors.append(
+                f"{group_where}: 'prompt_techniques' must be a mapping "
+                f"(got {type(pt_map).__name__})"
+            )
+            continue
+        if not pt_map:
+            errors.append(f"{group_where}: 'prompt_techniques' is empty")
+
+        for tech_name, tech_body in pt_map.items():
+            tech_where = f"{group_where} → '{tech_name}'"
+            if tech_name not in valid_tech_keys:
+                errors.append(
+                    f"{tech_where}: unknown prompt_technique "
+                    "(not in prompt_techniques.yaml)"
+                )
+            if not isinstance(tech_body, dict):
+                errors.append(
+                    f"{tech_where}: technique body must be a mapping with a 'prompts' field"
+                )
+                continue
+            prompt_list = tech_body.get("prompts") or []
+            if not prompt_list:
+                errors.append(f"{tech_where}: 'prompts' is empty")
+            for pi, prompt_entry in enumerate(prompt_list, start=1):
+                if not isinstance(prompt_entry, dict):
+                    errors.append(
+                        f"{tech_where} prompt #{pi}: must be a mapping with language keys "
+                        "(e.g. {en: ..., ja: ...})"
+                    )
+                    continue
+                langs = _prompt_entry_to_langs(prompt_entry)
+                preview = next(iter(langs.values()), "")[:60].replace("\n", " ")
+                prompt_where = f"{tech_where} prompt #{pi} ('{preview}…')"
+                # Detect unknown keys at the prompt level so typos like `english:` surface.
+                unknown_keys = [k for k in prompt_entry if k not in SUPPORTED_LANGUAGES]
+                for bad in unknown_keys:
+                    errors.append(
+                        f"{prompt_where}: unknown key '{bad}' "
+                        f"(allowed language codes: {sorted(SUPPORTED_LANGUAGES)})"
+                    )
+                if not langs:
+                    errors.append(f"{prompt_where}: no usable text in language keys")
+                    continue
+                if BASE_LANGUAGE not in langs:
+                    errors.append(
+                        f"{prompt_where}: missing required base language '{BASE_LANGUAGE}'"
+                    )
 
     # 3) response_encode: each entry's languages must be known.
     try:
-        re_data = load_mapping("datasets/response_encode.yaml") or {}
+        re_data = load_mapping(PACKAGE_ROOT / "datasets" / "response_encode.yaml") or {}
     except Exception as e:
         errors.append(f"datasets/response_encode.yaml: failed to load ({e})")
         re_data = {}
@@ -381,9 +476,9 @@ def validate_dataset_references() -> List[str]:
     # 4) jailbreak templates: must have a value containing the {{ prompt }} placeholder
     #    for every translation present.
     builtin_dir = _builtin_jailbreak_dir()
-    custom_dir = pathlib.Path("datasets/custom_jailbreaks")
+    custom_dir = PACKAGE_ROOT / "datasets" / "custom_jailbreaks"
     try:
-        allowed = load_mapping("datasets/jailbreak_config.yaml") or {}
+        allowed = load_mapping(PACKAGE_ROOT / "datasets" / "jailbreak_config.yaml") or {}
     except Exception as e:
         errors.append(f"datasets/jailbreak_config.yaml: failed to load ({e})")
         allowed = {}
@@ -415,4 +510,4 @@ def _validate_jailbreak_yaml(path: pathlib.Path, where: str) -> List[str]:
 # Internal helpers
 # ------------------------------------------------------------------
 def _builtin_jailbreak_dir() -> pathlib.Path:
-    return pathlib.Path("datasets/builtin_jailbreaks")
+    return PACKAGE_ROOT / "datasets" / "builtin_jailbreaks"

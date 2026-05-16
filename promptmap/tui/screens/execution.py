@@ -9,17 +9,17 @@ from textual.screen import Screen
 from textual.widgets import Button, Footer, Header, Label
 from textual.containers import Horizontal, Vertical
 
-from engine.context import AttackContext
-from engine.events import (
+from promptmap.engine.context import AttackContext
+from promptmap.engine.events import (
     EVT_INFO, EVT_PROMPT, EVT_RESPONSE, EVT_SCORE,
     EVT_BACKTRACK, EVT_ACHIEVED, EVT_COMPLETE, EVT_ERROR,
     ProgressEvent,
 )
-from tui.widgets.activity_log import ActivityLog
-from tui.widgets.conversation_log import ConversationLog
-from tui.widgets.score_panel import ScorePanel
-from tui.widgets.screen_log_handler import ScreenLogHandler
-from tui.widgets.smart_rich_log import SmartScrollRichLog
+from promptmap.tui.widgets.activity_log import ActivityLog
+from promptmap.tui.widgets.conversation_log import ConversationLog
+from promptmap.tui.widgets.score_panel import ScorePanel
+from promptmap.tui.widgets.screen_log_handler import ScreenLogHandler
+from promptmap.tui.widgets.smart_rich_log import SmartScrollRichLog
 
 
 @dataclass
@@ -214,5 +214,5 @@ class ExecutionScreen(Screen):
         self.app.pop_screen()
 
     def action_open_logs(self) -> None:
-        from tui.screens.log_viewer import LogViewerScreen
+        from promptmap.tui.screens.log_viewer import LogViewerScreen
         self.app.push_screen(LogViewerScreen())

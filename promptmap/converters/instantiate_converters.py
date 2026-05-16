@@ -1,7 +1,7 @@
 from typing import List
 
-from converters.base_converter import BaseConverter
-from converters.native_converters import get_converter_class
+from promptmap.converters.base_converter import BaseConverter
+from promptmap.converters.native_converters import get_converter_class
 
 DEFAULT_CONVERTER_ARGS = {
     "RandomCapitalLettersConverter": {"percentage": 25.0},

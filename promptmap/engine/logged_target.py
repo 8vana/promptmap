@@ -21,10 +21,10 @@ from __future__ import annotations
 
 from typing import Any
 
-from engine.base_target import TargetAdapter
-from engine.conversation_log import ConversationLog, get_conversation_log
-from engine.logging_setup import get_logger
-from engine.tool_call import ToolCallResponse
+from promptmap.engine.base_target import TargetAdapter
+from promptmap.engine.conversation_log import ConversationLog, get_conversation_log
+from promptmap.engine.logging_setup import get_logger
+from promptmap.engine.tool_call import ToolCallResponse
 
 _logger = get_logger("targets")
 

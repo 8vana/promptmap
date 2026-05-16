@@ -7,16 +7,16 @@ import os
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 
-from engine.context import AttackContext
-from memory.session_memory import SessionMemory
-from targets.http_target import HTTPTargetAdapter
-from targets.factory import create_target_adapter, get_available_providers, get_missing_env_vars, PROVIDER_LABELS
-from scorers.llm_judge import LLMJudgeScorer
-from attacks.single_pi_attack import SinglePIAttack
-from attacks.multi_crescendo_attack import CrescendoAttack
-from attacks.multi_pair_attack import PAIRAttack
-from attacks.multi_tap_attack import TAPAttack
-from attacks.multi_chunked_request_attack import ChunkedRequestAttack
+from promptmap.engine.context import AttackContext
+from promptmap.memory.session_memory import SessionMemory
+from promptmap.targets.http_target import HTTPTargetAdapter
+from promptmap.targets.factory import create_target_adapter, get_available_providers, get_missing_env_vars, PROVIDER_LABELS
+from promptmap.scorers.llm_judge import LLMJudgeScorer
+from promptmap.attacks.single_pi_attack import SinglePIAttack
+from promptmap.attacks.multi_crescendo_attack import CrescendoAttack
+from promptmap.attacks.multi_pair_attack import PAIRAttack
+from promptmap.attacks.multi_tap_attack import TAPAttack
+from promptmap.attacks.multi_chunked_request_attack import ChunkedRequestAttack
 
 _CONFIG_FILE = os.path.expanduser("~/.promptmap_config.json")
 
@@ -61,13 +61,13 @@ class PromptMapApp(App):
     # ------------------------------------------------------------------ #
 
     def on_mount(self) -> None:
-        from utils import validate_dataset_references
+        from promptmap.utils import validate_dataset_references
         errors = validate_dataset_references()
         if errors:
-            from tui.screens.validation_error import ValidationErrorScreen
+            from promptmap.tui.screens.validation_error import ValidationErrorScreen
             self.push_screen(ValidationErrorScreen(errors))
             return
-        from tui.screens.home import HomeScreen
+        from promptmap.tui.screens.home import HomeScreen
         self.push_screen(HomeScreen())
 
     # ------------------------------------------------------------------ #
@@ -83,7 +83,7 @@ class PromptMapApp(App):
         self._save_settings()
 
     def _load_settings(self) -> dict:
-        from engine.logging_setup import get_logger
+        from promptmap.engine.logging_setup import get_logger
         log = get_logger("tui.settings")
         data = dict(_DEFAULT_SETTINGS)
         if os.path.exists(_CONFIG_FILE):
@@ -102,7 +102,7 @@ class PromptMapApp(App):
         return data
 
     def _save_settings(self) -> None:
-        from engine.logging_setup import get_logger
+        from promptmap.engine.logging_setup import get_logger
         log = get_logger("tui.settings")
         try:
             with open(_CONFIG_FILE, "w") as f:
@@ -153,12 +153,12 @@ class PromptMapApp(App):
     # ------------------------------------------------------------------ #
 
     def build_context(self, converter_instances: list | None = None) -> AttackContext:
-        from engine.logged_target import LoggedTargetAdapter
+        from promptmap.engine.logged_target import LoggedTargetAdapter
         s = self._settings
 
         if s.get("target_type") == "browser":
-            from targets.browser_config import load_browser_config
-            from targets.playwright_target import PlaywrightTargetAdapter
+            from promptmap.targets.browser_config import load_browser_config
+            from promptmap.targets.playwright_target import PlaywrightTargetAdapter
             cfg = load_browser_config(s["browser_config_path"])
             raw_target = PlaywrightTargetAdapter(cfg)
             target_system, target_model = "browser_target", s.get("browser_config_path", "")

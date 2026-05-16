@@ -1,9 +1,9 @@
 import json
 
-from engine.context import AttackContext
-from engine.events import ProgressEvent, EVT_INFO, EVT_AGENT_ACTION, EVT_AGENT_DONE, EVT_ERROR
-from engine.models import AttackResult
-from utils import load_atlas_catalog, load_dataset, load_prompt_techniques
+from promptmap.engine.context import AttackContext
+from promptmap.engine.events import ProgressEvent, EVT_INFO, EVT_AGENT_ACTION, EVT_AGENT_DONE, EVT_ERROR
+from promptmap.engine.models import AttackResult
+from promptmap.utils import load_atlas_catalog, load_dataset, load_prompt_techniques
 
 _SYSTEM_PROMPT = """\
 You are an expert AI security researcher conducting an autonomous red-teaming assessment.
