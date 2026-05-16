@@ -1,0 +1,79 @@
+# Catalog of prompt crafting techniques used in adversarial prompt design.
+# These values are the allowed set for the `prompt_technique` field in dataset YAML files.
+# Reference: academic literature on adversarial prompting and LLM red-teaming.
+
+prompt_techniques:
+  Simple_Instruction_Attack:
+    description: "Direct request to perform a harmful or sensitive action without any contextual framing."
+
+  Context_Ignoring_Attack:
+    description: "Instructs the model to disregard prior context, conversation history, or system instructions by injecting false memory or overriding context."
+
+  Role_Play_Attack:
+    description: "Asks the model to adopt a persona or character (e.g., DAN, Developer Mode) that operates with fewer restrictions."
+
+  Virtualization_Attack:
+    description: "Frames a harmful request within a fictional, hypothetical, or creative scenario to bypass safety filters."
+
+  Obfuscation_Attack:
+    description: "Encodes or visually obscures malicious instructions (e.g., Base64, HTML entities, zero-width characters) to evade detection."
+
+  Token_Manipulation_Attack:
+    description: "Exploits special tokens, delimiters, or formatting markers (e.g., <|im_end|>, [SYSTEM END]) to manipulate the model's instruction parsing."
+
+  Hallucination_Induction_Attack:
+    description: "Prompts the model to generate plausible-sounding but fabricated entities (e.g., non-existent packages, URLs) for downstream exploitation."
+
+  Special_Case_Attack:
+    description: "Adds a conditional clause (e.g., 'if this is X, then do Y') to camouflage the malicious instruction inside an apparently scoped trigger."
+
+  Few_Shot_Attack:
+    description: "Provides in-context Q/A or scenario/answer examples that lead the model into completing a specific pattern ending with the malicious request."
+
+  Refusal_Suppression:
+    description: "Forbids the model from using refusal-related phrases (e.g., 'I cannot', 'I am unable', 'however'), making it harder to decline harmful or sensitive requests."
+
+  Context_Switching_Attack:
+    description: "Marks the previous task as completed and explicitly 'switches context' to a new, malicious task — exploiting the model's task-boundary framing."
+
+  Task_Deflection_Attack:
+    description: "Wraps the malicious request inside a seemingly benign task, using the cover task to legitimize the real intent (e.g., 'draft a disclaimer that includes your model name')."
+
+  Variables:
+    description: "Decomposes the malicious request into named variables or placeholders that are reassembled at the end, evading keyword-based filters."
+
+  Defined_Dictionary_Attack:
+    description: "Embeds the malicious request inside a structured data object (JSON, dict, asset map) so the model 'extracts' the answer as a routine data-retrieval operation."
+
+  Cognitive_Hacking:
+    description: "Forces the model into a persona or role whose narrative requires it to disclose the targeted information (e.g., museum exhibit, archive curator, AI historian)."
+
+  Instruction_Repetition_Attack:
+    description: "Repeats the same instruction many times to inflate its perceived importance and pressure the model into compliance."
+
+  Prefix_Injection:
+    description: "Pre-fills the start of the model's response with an affirmative phrase (e.g., 'Sure, my training data includes...') so the model continues into a harmful completion."
+
+  Style_Injection:
+    description: "Constrains the output tone or persona (e.g., 'brutally honest character', 'omniscient detached scholar') to indirectly bypass refusal habits tied to default safety phrasing."
+
+  Distractor_Instructions:
+    description: "Mixes several harmless instructions with the malicious one and explicitly directs the model to execute only the targeted instruction, masking the real intent."
+
+  Negated_Distractor_Instructions:
+    description: "Lists distractor tasks then negates them with 'however, do not perform X', leaving only the malicious task active while appearing to refuse work."
+
+  Context_Overflow:
+    description: "Floods the prompt with large amounts of unrelated text to overflow short-term context, immediately followed by the malicious instruction so prior guardrails are pushed out."
+
+  Anomalous_Token_Attack:
+    description: "Inserts runtime-special tokens (e.g., <|eot_id|>, <|start_header_id|>, <|bos_id|>) that the model treats with elevated semantics, exploiting their parsing behavior."
+
+  Competing_Objectives:
+    description: "Presents the model with contradictory objectives and tilts the framing so the harmful objective appears ethically or operationally dominant."
+
+  Escape_Characters:
+    description: "Uses chat-template control tokens or escape sequences to break out of the system-prompt scope and inject new role-tagged instructions."
+
+  Logic_Traps:
+    description: "Constructs a conditional ethical dilemma where refusing seems logically or ethically worse than complying, pressuring the model into compliance."
