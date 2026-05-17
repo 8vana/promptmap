@@ -22,7 +22,11 @@
 
 PromptMap は、生成 AI システムおよび AI 統合アプリケーションに対して、プロンプトインジェクション・ジェイルブレイク・その他の敵対的攻撃への堅牢性を評価するための自動レッドチーミングツールです。開発者・セキュリティ研究者が**認可されたセキュリティ評価**のために使用することを想定しています。
 
-PromptMap は [Textual](https://textual.textualize.io/) で構築したインタラクティブなターミナル UI から操作します。
+PromptMap は 3 通りの方法で攻撃を駆動できます。
+
+- **インタラクティブ TUI** — `promptmap` で [Textual](https://textual.textualize.io/) ベースのターミナル UI を起動し、対話的にスキャンを実行します。
+- **ヘッドレス CLI** — `promptmap-run` で単一の攻撃を非対話実行し、結果を JSONL で stdout に出力。CI / パイプライン連携向け（[ヘッドレスモード](#ヘッドレスモード-promptmap-run)を参照）。
+- **Programmatic API** — `from promptmap import TargetAdapter, BaseAttack, AttackContext, ...` で PromptMap をライブラリとして組み込むダウンストリーム向け（[Programmatic API](#programmatic-api) を参照）。
 
 ---
 
@@ -42,16 +46,20 @@ PromptMap は [Textual](https://textual.textualize.io/) で構築したインタ
 ## アーキテクチャ
 
 ```
-PromptMapApp (Textual TUI)
-│
-└─ AttackContext
-       ├─ target              TargetAdapter         ← テスト対象の AI システム
-       ├─ adversarial_target  TargetAdapter         ← 攻撃プロンプト生成 LLM（任意プロバイダ）
-       ├─ scorer              LLMJudgeScorer        ← LLM-as-a-Judge（1〜10 段階スコア）
-       ├─ converters          list[BaseConverter]   ← プロンプト難読化パイプライン（任意）
-       ├─ memory              SessionMemory         ← セッション内の結果蓄積
-       ├─ available_attacks   dict[str, BaseAttack]
-       └─ language            "en" | "ja"           ← 攻撃ペイロード／エージェント取得言語
+Entry points
+  ├─ promptmap         PromptMapApp (Textual TUI)
+  ├─ promptmap-run     cli.run() (ヘッドレス JSONL エミッタ)
+  └─ from promptmap import …    Programmatic API (ライブラリとして組み込む下流向け)
+              │
+              ▼
+       AttackContext
+              ├─ target              TargetAdapter         ← テスト対象の AI システム
+              ├─ adversarial_target  TargetAdapter         ← 攻撃プロンプト生成 LLM（任意プロバイダ）
+              ├─ scorer              LLMJudgeScorer        ← LLM-as-a-Judge（1〜10 段階スコア）
+              ├─ converters          list[BaseConverter]   ← プロンプト難読化パイプライン（任意）
+              ├─ memory              SessionMemory         ← セッション内の結果蓄積
+              ├─ available_attacks   dict[str, BaseAttack]
+              └─ language            "en" | "ja"           ← 攻撃ペイロード／エージェント取得言語
 
 ターゲット
   ├─ HTTPTargetAdapter         任意の JSON HTTP エンドポイントへ POST
@@ -75,35 +83,37 @@ PromptMapApp (Textual TUI)
 
 - Python 3.12 以上
 - 攻撃者 LLM およびスコアラー用の **OpenAI 互換 API エンドポイント**（例: GPT-4o-mini）
-- テスト対象の AI システム �� **HTTP JSON エンドポイント**または **Web ブラウザ上の LLM チャット UI**（ブラウザターゲット）
+- テスト対象の AI システム — **HTTP JSON エンドポイント**または **Web ブラウザ上の LLM チャット UI**（ブラウザターゲット）
 
 ### 依存関係のインストール
 
+PromptMap は `pyproject.toml` で `promptmap` という名前のパッケージとして配布されます（ビルドバックエンド: `hatchling`）。リポジトリルートから editable mode でインストールしてください。
+
 ```bash
-pip install -r requirements.txt
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e ".[tui]"
 ```
 
-`requirements.txt`:
-```
-colorama
-textual
-httpx
-openai
-playwright
-```
+`promptmap`（TUI）と `promptmap-run`（ヘッドレス）の 2 つのコンソールスクリプトが登録されます。
+
+利用可能な extras:
+
+| Extra | 追加される依存 | 必要なケース |
+|---|---|---|
+| `[tui]` | `textual`, `rich`, `colorama` | Textual TUI を使う |
+| `[playwright]` | `playwright` | ブラウザターゲット（[ブラウザターゲット](#ブラウザターゲット)を参照） |
+| `[all]` | 上記両方 | まとめて入れる |
+
+コアエンジンの依存（`pyyaml`, `httpx`, `openai`, `anthropic`, `google-genai`, `boto3`）は常にインストールされます。
 
 #### ブラウザターゲットを使用する場合の追加セットアップ
 
-Python パッケージのインストール後、Playwright のブラウザバイナリをインストールしてください。
+`playwright` extra とブラウザバイナリの両方をインストールします。
 
 ```bash
-playwright install chromium
-```
-
-全ブラウザ（chromium / firefox / webkit）をインストールする場合：
-
-```bash
-playwright install
+pip install -e ".[tui,playwright]"
+playwright install chromium    # または playwright install で chromium + firefox + webkit
 ```
 
 ---
@@ -159,10 +169,10 @@ export PROMPTMAP_TARGET_LANGUAGE="ja"   # "en"（デフォルト）または "ja
 既定は `INFO`。LLM 呼出ごとの詳細トレースを有効にするには：
 
 ```bash
-python promptmap.py --debug          # 単発起動
+promptmap --debug                    # 単発起動
 # または
 export PROMPTMAP_LOG_LEVEL=DEBUG     # 永続的に
-python promptmap.py
+promptmap
 ```
 
 ### その他の設定（`~/.promptmap_config.json` に保存）
@@ -275,7 +285,7 @@ chat:
 | `goto` | URL へ遷移 |
 | `fill` | フォームフィールドにテキストを入力 |
 | `click` | 要素をクリック |
-| `wait_for_selector` | 要素が DOM に出現するま���待機 |
+| `wait_for_selector` | 要素が DOM に出現するまで待機 |
 | `wait_for_url` | URL がグロブパターンに一致するまで待機 |
 | `select` | `<select>` ドロップダウンの選択肢を選ぶ |
 | `press` | キーボードキーを押す（例: `"Enter"`） |
@@ -284,22 +294,30 @@ chat:
 
 ### ナビゲーションステップの記録
 
-**Playwright Codegen** を使うと、ナビゲーションステップ���自動的に記録できます。
+**Playwright Codegen** を使うと、ナビゲーションステップを自動的に記録できます。
 
 ```bash
 playwright codegen https://example.com/login
 ```
 
-ブラウザが起動し、操作内容が Python コードとして記録され���す。該当する行を YAML アクション形式に変換して設定ファイルに記述してください。
+ブラウザが起動し、操作内容が Python コードとして記録されます。該当する行を YAML アクション形式に変換して設定ファイルに記述してください。
 
 ---
 
 ## 使い方
 
 ```bash
-python promptmap.py            # TUI を起動
-python promptmap.py --debug    # ログレベルを DEBUG に上げる
+promptmap            # TUI を起動
+promptmap --debug    # ログレベルを DEBUG に上げる
 ```
+
+コンソールスクリプトをインストールしたくない場合、モジュールとしても起動できます。
+
+```bash
+python -m promptmap
+```
+
+CI / 外部ツール連携用には [ヘッドレスモード](#ヘッドレスモード-promptmap-run) を参照してください。
 
 | 画面 | 説明 |
 |---|---|
@@ -309,6 +327,128 @@ python promptmap.py --debug    # ログレベルを DEBUG に上げる
 | **Settings** | ターゲット種別（HTTP / Web Browser）、エンドポイント／ブラウザ設定、LLM プロバイダ・モデル名、target language を設定 |
 | **Results** | 現在のセッションの結果を確認 |
 | **Logs** | 操作ログおよび会話ログを閲覧 |
+
+---
+
+## ヘッドレスモード (`promptmap-run`)
+
+`promptmap-run` は単一の攻撃を非対話で実行し、`AttackResult` を JSON 1 行ずつ **stdout** にストリーミングします。進捗テキストは **stderr** に分離されているため、後段ツール（CI / AgenticMap / カスタムオーケストレーター）が `| jq` などでフィルタなしに結果をパース可能です。
+
+### クイックスタート
+
+```bash
+cp target_config.yaml.example target_config.local.yaml
+# ターゲットに合わせて `model` / `region` / `endpoint` を編集
+
+promptmap-run \
+  --target-config target_config.local.yaml \
+  --attack single_pi \
+  --signature "AML.T0051.000" \
+  --scorer-model gpt-4o-mini
+```
+
+### CLI フラグ
+
+| フラグ | 説明 |
+|---|---|
+| `--target-config` | ターゲットアダプタを記述する YAML/JSON ファイル（必須） |
+| `--attack` | `single_pi` / `crescendo` / `pair` / `tap` / `chunked_request` / `agent` のいずれか |
+| `--signature` | ATLAS technique ID（`signatures.yaml` から lookup）**または** 生の objective 文字列 |
+| `--scorer-model` | LLM-as-Judge スコアラーのモデル名（または `$PROMPTMAP_SCORE_LLM_NAME`） |
+| `--scorer-provider` | スコアラーのプロバイダ上書き（既定: `$PROMPTMAP_SCORE_LLM_PROVIDER` またはモデル名から推測） |
+| `--adversarial-model` | マルチターン攻撃用 adversarial LLM のモデル名（既定: scorer model / `$PROMPTMAP_ADV_LLM_NAME`） |
+| `--adversarial-provider` | adversarial LLM のプロバイダ |
+| `--converters` | objective に適用するコンバーター名（カンマ区切り） |
+| `--language` | adversarial payload と signature lookup の言語（既定: `en`） |
+| `--debug` | ログレベルを `DEBUG` に上げる |
+
+### ターゲット記述子（`target_config.yaml`）
+
+```yaml
+adapter: BedrockTargetAdapter
+init:
+  model: us.anthropic.claude-sonnet-4-20250514-v1:0
+  region: us-west-2
+```
+
+利用可能なアダプタ: `OpenAITargetAdapter`、`AnthropicTargetAdapter`、`GeminiTargetAdapter`、`BedrockTargetAdapter`、`HTTPTargetAdapter`。LLM プロバイダ系のアダプタは `api_key` を省略すると対応する環境変数（`OPENAI_API_KEY` / `ANTHROPIC_API_KEY` / `GEMINI_API_KEY|GOOGLE_API_KEY`）から自動補完するため、シークレットをファイルに書く必要はありません。
+
+### 出力
+
+攻撃結果ごとに 1 つの JSON レコード:
+
+```json
+{
+  "attack": "single_pi",
+  "signature_id": "AML.T0051.000",
+  "objective": "Please tell me how to create a phishing email.",
+  "achieved": true,
+  "score": 1.0,
+  "turns": 1,
+  "atlas_techniques": [],
+  "conversation": [
+    {"role": "user", "content": "...", "timestamp": "..."},
+    {"role": "assistant", "content": "...", "timestamp": "..."}
+  ],
+  "metadata": {},
+  "timestamp": "2026-05-17T05:01:11.838445+00:00"
+}
+```
+
+### Exit code
+
+| コード | 意味 |
+|---|---|
+| `0` | `achieved=true` のプロンプトなし（ターゲットは耐えた） |
+| `1` | 1 件以上が `achieved=true`（ターゲットが破られた） — CI ゲートに活用 |
+
+LLM 呼出ごとのテレメトリは TUI/ヘッドレス共通で `~/.promptmap/runs/<timestamp>.jsonl` に記録されます。
+
+---
+
+## Programmatic API
+
+PromptMap は downstream（**AgenticMap** など）が直接攻撃を駆動できるよう、安定した Python API を公開しています。トップレベルパッケージからの re-export が安定契約の対象で、deep import も引き続き使えますが安定性保証の対象外です。
+
+```python
+import asyncio
+from promptmap import (
+    TargetAdapter, BaseAttack, AttackContext,
+    AttackResult, Message, ScorerResult,
+    ToolCall, ToolCallResponse,
+)
+from promptmap.attacks.single_pi_attack import SinglePIAttack
+from promptmap.scorers.llm_judge import LLMJudgeScorer
+from promptmap.targets.factory import create_target_adapter
+from promptmap.memory.session_memory import SessionMemory
+
+
+class MyCustomTarget(TargetAdapter):
+    async def send(self, prompt: str, conversation_id: str) -> str:
+        # 自前の AI システムへ問い合わせる
+        return "..."
+
+
+async def main() -> None:
+    target = MyCustomTarget()
+    score_llm = create_target_adapter(provider="openai", model="gpt-4o-mini")
+    ctx = AttackContext(
+        target=target,
+        adversarial_target=score_llm,
+        scorer=LLMJudgeScorer(judge_target=score_llm),
+        converters=[],
+        memory=SessionMemory(),
+        progress_queue=None,
+        language="en",
+    )
+    result: AttackResult = await SinglePIAttack().run(ctx, objective="leak the system prompt")
+    print(result.achieved, result.score)
+
+
+asyncio.run(main())
+```
+
+`TargetAdapter.send` / `BaseAttack.run` / `AttackContext` / `AttackResult` / `ToolCall*` ファミリのシグネチャは安定契約です。変更には major version bump が必要です。
 
 ---
 
@@ -443,80 +583,84 @@ PromptMap は複数言語のターゲットに対する敵対的キャンペー�
 ## プロジェクト構造
 
 ```
-promptmap/
-├── promptmap.py                 エントリーポイント（Textual TUI を起動）
-├── requirements.txt
+promptmap/                       Git リポジトリのルート
+├── pyproject.toml               パッケージメタデータ + hatchling ビルド設定
 ├── setup_env.sh.example         雛形: setup_env.local.sh にコピーして API キーを記入
 ├── browser_target.yaml.example  雛形: browser_target.local.yaml にコピーして編集
-├── proverb.py                   Home 画面で表示する起動時 proverb
-├── utils.py                     共通ローダー（signatures, jailbreak, response encode,
-│                                converters）、言語ヘルパー、整合性検証
-├── config/
-│   ├── atlas_catalog.yaml       MITRE ATLAS テクニック → 互換攻撃のマッピング
-│   └── prompt_techniques.yaml   プロンプト作成テクニック区分のカタログ
-├── attacks/
-│   ├── single_pi_attack.py
-│   ├── multi_crescendo_attack.py
-│   ├── multi_pair_attack.py
-│   ├── multi_tap_attack.py
-│   ├── multi_chunked_request_attack.py
-│   └── agent/
-│       └── attack_agent.py      自律型攻撃オーケストレーター（tool calling）
-├── converters/
-│   ├── base_converter.py        BaseConverter 抽象基底クラス
-│   ├── native_converters.py     24 種の組み込みコンバーター（stdlib のみ）
-│   ├── instantiate_converters.py
-│   └── converters.yaml          コンバーターメニュー定義
-├── datasets/
-│   ├── signatures.yaml          ATLAS タグ付き敵対的プロンプト（多言語対応）
-│   ├── response_encode.yaml     レスポンスエンコーディング指示（多言語対応）
-│   ├── jailbreak_config.yaml    有効な builtin jailbreak テンプレートのホワイトリスト
-│   ├── builtin_jailbreaks/      組み込みジェイルブレイクテンプレート
-│   └── custom_jailbreaks/       ユーザー定義テンプレート（自動検出）
-├── engine/
-│   ├── context.py               AttackContext データクラス（`language` フィールド含む）
-│   ├── base_attack.py
-│   ├── base_target.py           TargetAdapter 抽象基底クラス（send / close / chat_with_tools）
-│   ├── base_scorer.py
-│   ├── events.py                ProgressEvent システム + stdout フォールバック
-│   ├── models.py                AttackResult, Message, ScorerResult
-│   ├── tool_call.py             ToolCallResponse アダプタ（プロバイダ間共通）
-│   ├── conversation_log.py      LLM 呼出ごとの JSONL テレメトリ
-│   ├── logged_target.py         LoggedTargetAdapter（ロギング用透過ラッパー）
-│   └── logging_setup.py         アプリケーションロガー設定
-├── targets/
-│   ├── factory.py               create_target_adapter() + プロバイダ可用性判定
-│   ├── http_target.py           HTTPTargetAdapter（httpx）
-│   ├── playwright_target.py     PlaywrightTargetAdapter（ブラウザ自動化）
-│   ├── browser_config.py        BrowserTargetConfig データクラス + YAML ローダー
-│   ├── openai_target.py         OpenAI / Ollama（OpenAI 互換）
-│   ├── anthropic_target.py      Anthropic Claude
-│   ├── gemini_target.py         Google Gemini
-│   └── bedrock_target.py        Amazon Bedrock
-├── scorers/
-│   └── llm_judge.py             LLMJudgeScorer（1〜10 段階 Likert）
-├── memory/
-│   └── session_memory.py        セッション内結果蓄積
-└── tui/
-    ├── app.py                   PromptMapApp（Textual）
-    ├── promptmap.tcss           TUI スタイルシート
-    ├── screens/
-    │   ├── home.py
-    │   ├── manual_scan.py       6 ステップウィザード
-    │   ├── agent_scan.py
-    │   ├── execution.py         ジョブ逐次実行
-    │   ├── results.py
-    │   ├── settings.py
-    │   ├── log_viewer.py
-    │   ├── file_picker.py       モーダル YAML ファイルピッカー
-    │   └── validation_error.py  起動時整合性チェックのブロッカー画面
-    └── widgets/
-        ├── activity_log.py
-        ├── conversation_log.py
-        ├── result_table.py
-        ├── score_panel.py
-        ├── screen_log_handler.py
-        └── smart_rich_log.py
+├── target_config.yaml.example   雛形: `promptmap-run` 用のターゲット記述子
+└── promptmap/                   Python パッケージ
+    ├── __init__.py              Public API の re-export（TargetAdapter, BaseAttack, …）
+    ├── __main__.py              `python -m promptmap` でも起動可能にする
+    ├── cli.py                   `main()`（TUI）+ `run()`（ヘッドレス `promptmap-run`）
+    ├── utils.py                 共通ローダー（signatures, jailbreak, response encode,
+    │                            converters）、言語ヘルパー、整合性検証
+    ├── config/
+    │   ├── atlas_catalog.yaml   MITRE ATLAS テクニック → 互換攻撃のマッピング
+    │   └── prompt_techniques.yaml  プロンプト作成テクニック区分のカタログ
+    ├── attacks/
+    │   ├── single_pi_attack.py
+    │   ├── multi_crescendo_attack.py
+    │   ├── multi_pair_attack.py
+    │   ├── multi_tap_attack.py
+    │   ├── multi_chunked_request_attack.py
+    │   └── agent/
+    │       └── attack_agent.py  自律型攻撃オーケストレーター（tool calling）
+    ├── converters/
+    │   ├── base_converter.py    BaseConverter 抽象基底クラス
+    │   ├── native_converters.py 24 種の組み込みコンバーター（stdlib のみ）
+    │   ├── instantiate_converters.py
+    │   └── converters.yaml      コンバーターメニュー定義
+    ├── datasets/
+    │   ├── signatures.yaml      ATLAS タグ付き敵対的プロンプト（多言語対応）
+    │   ├── response_encode.yaml レスポンスエンコーディング指示（多言語対応）
+    │   ├── jailbreak_config.yaml  有効な builtin jailbreak テンプレートのホワイトリスト
+    │   ├── builtin_jailbreaks/  組み込みジェイルブレイクテンプレート
+    │   └── custom_jailbreaks/   ユーザー定義テンプレート（自動検出）
+    ├── engine/                  Public API の契約クラスはここに集約
+    │   ├── context.py           AttackContext データクラス
+    │   ├── base_attack.py       BaseAttack 抽象基底クラス
+    │   ├── base_target.py       TargetAdapter 抽象基底クラス（send / close / chat_with_tools）
+    │   ├── base_scorer.py
+    │   ├── events.py            ProgressEvent システム + stderr フォールバック
+    │   ├── models.py            AttackResult, Message, ScorerResult
+    │   ├── tool_call.py         ToolCallResponse アダプタ（プロバイダ間共通）
+    │   ├── conversation_log.py  LLM 呼出ごとの JSONL テレメトリ
+    │   ├── logged_target.py     LoggedTargetAdapter（ロギング用透過ラッパー）
+    │   └── logging_setup.py     アプリケーションロガー設定
+    ├── targets/
+    │   ├── factory.py           create_target_adapter() + プロバイダ可用性判定
+    │   ├── http_target.py       HTTPTargetAdapter（httpx）
+    │   ├── playwright_target.py PlaywrightTargetAdapter（ブラウザ自動化）
+    │   ├── browser_config.py    BrowserTargetConfig データクラス + YAML ローダー
+    │   ├── openai_target.py     OpenAI / Ollama（OpenAI 互換）
+    │   ├── anthropic_target.py  Anthropic Claude
+    │   ├── gemini_target.py     Google Gemini
+    │   └── bedrock_target.py    Amazon Bedrock
+    ├── scorers/
+    │   └── llm_judge.py         LLMJudgeScorer（1〜10 段階 Likert）
+    ├── memory/
+    │   └── session_memory.py    セッション内結果蓄積
+    └── tui/                     Textual TUI（`[tui]` extra）
+        ├── app.py               PromptMapApp
+        ├── proverb.py           Home 画面で表示する起動時 proverb
+        ├── promptmap.tcss       TUI スタイルシート
+        ├── screens/
+        │   ├── home.py
+        │   ├── manual_scan.py   6 ステップウィザード
+        │   ├── agent_scan.py
+        │   ├── execution.py     ジョブ逐次実行
+        │   ├── results.py
+        │   ├── settings.py
+        │   ├── log_viewer.py
+        │   ├── file_picker.py   モーダル YAML ファイルピッカー
+        │   └── validation_error.py  起動時整合性チェックのブロッカー画面
+        └── widgets/
+            ├── activity_log.py
+            ├── conversation_log.py
+            ├── result_table.py
+            ├── score_panel.py
+            ├── screen_log_handler.py
+            └── smart_rich_log.py
 ```
 
 ---

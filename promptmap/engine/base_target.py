@@ -1,3 +1,13 @@
+"""TargetAdapter — PromptMap public API.
+
+Defines the contract that every concrete target (LLM provider, HTTP endpoint,
+browser-driven chat UI, …) implements so attacks can talk to it uniformly.
+
+Downstream consumers (e.g. AgenticMap) depend on these signatures. Changing
+``TargetAdapter.send`` or ``TargetAdapter.chat_with_tools`` is a breaking
+change and requires a major version bump.
+"""
+
 from abc import ABC, abstractmethod
 
 from promptmap.engine.tool_call import ToolCallResponse
