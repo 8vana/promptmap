@@ -1,3 +1,13 @@
+"""Core data shapes — PromptMap public API.
+
+``Message``, ``ScorerResult``, and ``AttackResult`` are the values that flow
+across PromptMap's public boundary: attacks return them, scorers produce
+them, and downstream consumers (e.g. AgenticMap) read their fields directly
+to build Findings. Field names and types here are a stability contract —
+removing or renaming a field is a breaking change and requires a major
+version bump (adding new optional fields is non-breaking).
+"""
+
 from dataclasses import dataclass, field
 from datetime import datetime
 

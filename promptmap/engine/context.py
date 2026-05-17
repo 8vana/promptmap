@@ -1,3 +1,13 @@
+"""AttackContext — PromptMap public API.
+
+Bundles the dependencies an attack needs to run: target adapter, adversarial
+LLM, scorer, converters, session memory, the per-run progress queue, and the
+target language. Downstream consumers (e.g. AgenticMap) construct
+``AttackContext`` directly to drive PromptMap attacks programmatically; the
+field set and types here are a stability contract — changing them is a
+breaking change and requires a major version bump.
+"""
+
 from __future__ import annotations
 
 import asyncio

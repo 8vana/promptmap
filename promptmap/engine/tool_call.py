@@ -1,3 +1,13 @@
+"""Tool-call protocol shapes — PromptMap public API.
+
+``ToolCall`` / ``ToolCallFunction`` / ``ToolCallMessage`` / ``ToolCallChoice``
+/ ``ToolCallResponse`` are PromptMap's normalized representation of the
+OpenAI-style tool-call payload returned by ``TargetAdapter.chat_with_tools``.
+Downstream consumers (e.g. AgenticMap) consume these to detect tool abuse;
+field names and types here are a stability contract — changing them is a
+breaking change and requires a major version bump.
+"""
+
 from __future__ import annotations
 
 import json

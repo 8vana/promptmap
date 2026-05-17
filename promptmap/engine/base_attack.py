@@ -1,3 +1,11 @@
+"""BaseAttack — PromptMap public API.
+
+Defines the contract every attack strategy (single-shot PI, Crescendo, PAIR,
+TAP, Chunked Request, Agent, …) implements. Downstream consumers (e.g.
+AgenticMap) depend on this signature. Changing ``BaseAttack.run`` is a
+breaking change and requires a major version bump.
+"""
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
