@@ -1,0 +1,32 @@
+# Example target configuration for `promptmap-run --target-config <this file>`.
+#
+# `adapter` is the TargetAdapter subclass name. Known adapters:
+#   OpenAITargetAdapter, AnthropicTargetAdapter, GeminiTargetAdapter,
+#   BedrockTargetAdapter, HTTPTargetAdapter
+#
+# `init` is the kwargs dict passed to the adapter constructor. For the
+# *TargetAdapter classes, `api_key` is auto-filled from the matching env var
+# (OPENAI_API_KEY / ANTHROPIC_API_KEY / GEMINI_API_KEY|GOOGLE_API_KEY) when
+# omitted, so secrets do not need to live in this file.
+
+adapter: BedrockTargetAdapter
+init:
+  model: anthropic.claude-3-5-sonnet-20240620-v1:0
+  region: us-east-1
+
+# ── Other adapter examples ──────────────────────────────────────────────────
+#
+# adapter: OpenAITargetAdapter
+# init:
+#   model: gpt-4o-mini
+#
+# adapter: AnthropicTargetAdapter
+# init:
+#   model: claude-3-5-sonnet-20241022
+#
+# adapter: HTTPTargetAdapter
+# init:
+#   endpoint: https://api.example.com/chat
+#   body_template:
+#     prompt: "{PROMPT}"
+#   response_key: text
