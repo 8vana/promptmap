@@ -76,6 +76,13 @@ techniques:
     compatible_attacks:
       - Single_PI_Attack
 
+  AML.T0060:
+    name: "Publish Hallucinated Entities"
+    tactics: [AML.TA0011]
+    description: "Adversaries publish attacker-controlled entities that match hallucinated packages, URLs, or organizations so victims are more likely to trust and use them."
+    compatible_attacks:
+      - Single_PI_Attack
+
   AML.T0069.000:
     name: "Discover LLM System Information: Special Character Sets"
     tactics: [AML.TA0008]
