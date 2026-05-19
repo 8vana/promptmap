@@ -20,9 +20,10 @@ from rich.text import Text
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Container, Horizontal, Vertical
+from textual import events
 from textual.screen import Screen
 from textual.widgets import (
-    Button, ContentSwitcher, Footer, Header, Label, Select,
+    Button, ContentSwitcher, Header, Label, Select,
     SelectionList, Static, TextArea,
 )
 
@@ -115,20 +116,32 @@ class ManualScanScreen(Screen):
                     "multi-turn attack generation.",
                     classes="field-label",
                 )
-                yield SelectionList(id="prompts-selection")
-                yield Label("Custom prompts (optional, one per line):", classes="field-label")
-                yield TextArea("", id="custom-prompts-input")
-                yield Label(
-                    "Prompt technique to apply to custom prompts (optional, "
-                    "applies to multi-turn attacks only):",
-                    classes="field-label",
-                )
-                yield Select(
-                    options=self._prompt_technique_options(),
-                    allow_blank=False,
-                    value=_NO_TECHNIQUE_VALUE,
-                    id="custom-technique-select",
-                )
+                with Vertical(id="step-3-top"):
+                    yield SelectionList(id="prompts-selection")
+                    yield Label(
+                        "Prompt preview (highlighted item):",
+                        classes="field-label",
+                    )
+                    yield TextArea(
+                        "",
+                        id="prompt-preview",
+                        read_only=True,
+                        show_cursor=False,
+                        soft_wrap=True,
+                    )
+                with Vertical(id="step-3-bottom"):
+                    yield Label("Custom prompts (optional, one per line):", classes="field-label")
+                    yield TextArea("", id="custom-prompts-input")
+                    yield Label(
+                        "Custom prompt technique (optional; multi-turn only):",
+                        classes="field-label",
+                    )
+                    yield Select(
+                        options=self._prompt_technique_options(),
+                        allow_blank=False,
+                        value=_NO_TECHNIQUE_VALUE,
+                        id="custom-technique-select",
+                    )
 
             with Vertical(id="step-4"):
                 yield Label("Step 4 / 6 — Jailbreak / response encoding", classes="step-title")
@@ -165,7 +178,6 @@ class ManualScanScreen(Screen):
             yield Button("Back", id="btn-back", disabled=True)
             yield Button("Next", id="btn-next", variant="primary")
             yield Button("Cancel", id="btn-cancel")
-        yield Footer()
 
     # ------------------------------------------------------------------ #
     #  Mount                                                               #
@@ -177,6 +189,8 @@ class ManualScanScreen(Screen):
         for c in self._converters:
             label = f"{c['name']}: {c['description']}"
             sel.add_option((Text(label), c["name"], False))
+
+        self.set_interval(0.15, self._tick_prompt_preview_sync)
 
         # Default the technique select to the first option so step 2 has data.
         opts = self._technique_options()
@@ -289,6 +303,7 @@ class ManualScanScreen(Screen):
             self._populate_attacks()
         elif idx == 2:
             self._populate_prompts()
+            self.call_after_refresh(self._focus_and_sync_prompt_list)
         elif idx == 3:
             self._refresh_step4_note()
         elif idx == 5:
@@ -379,8 +394,106 @@ class ManualScanScreen(Screen):
             tech = entry.get("prompt_technique", "")
             self._prompt_technique_by_value[value] = tech
             fb_marker = f" [{entry['language_used']}→fallback]" if entry.get("is_fallback") else ""
-            label = f"[{tech}]{fb_marker} {value}" if tech else f"{fb_marker} {value}".strip()
+            preview = self._summarize_prompt(value)
+            label = f"[{tech}]{fb_marker} {preview}" if tech else f"{fb_marker} {preview}".strip()
             sel.add_option((Text(label), value, value in self._sel_prompts))
+        if sel.option_count:
+            if sel.highlighted is None:
+                sel.action_first()
+            self._sync_prompt_preview_from_selection_list()
+        else:
+            self._update_prompt_preview("")
+
+    def _summarize_prompt(self, value: str, limit: int = 88) -> str:
+        first_line = next((line.strip() for line in value.splitlines() if line.strip()), "")
+        if not first_line:
+            return "(empty prompt)"
+        truncated = first_line[:limit]
+        needs_ellipsis = len(first_line) > limit or len(value.splitlines()) > 1
+        return truncated + ("..." if needs_ellipsis else "")
+
+    def _update_prompt_preview(self, value: str) -> None:
+        preview = self.query_one("#prompt-preview", TextArea)
+        text = value if value else "Select a prompt to preview."
+        if preview.text != text:
+            preview.load_text(text)
+
+    def _sync_prompt_preview_from_selection_list(self) -> None:
+        sel = self.query_one("#prompts-selection", SelectionList)
+        highlighted = sel.highlighted
+        if sel.option_count and highlighted is None:
+            sel.action_first()
+            highlighted = sel.highlighted
+        if highlighted is None or not sel.option_count:
+            self._update_prompt_preview("")
+            return
+        self._update_prompt_preview(str(sel.get_option_at_index(highlighted).value))
+
+    def _focus_and_sync_prompt_list(self) -> None:
+        sel = self.query_one("#prompts-selection", SelectionList)
+        sel.focus()
+        self._sync_prompt_preview_from_selection_list()
+
+    def _tick_prompt_preview_sync(self) -> None:
+        if self._step_idx != 2:
+            return
+        try:
+            self._sync_prompt_preview_from_selection_list()
+        except Exception:
+            # Widgets may be in the middle of a step transition or unmount.
+            pass
+
+    def _sync_prompt_preview_from_pointer_event(self, event: events.MouseEvent) -> None:
+        if self._step_idx != 2:
+            return
+        try:
+            sel = self.query_one("#prompts-selection", SelectionList)
+        except Exception:
+            return
+        option_index = None
+        if event.style is not None:
+            option_index = event.style.meta.get("option")
+        if option_index is not None and option_index != sel.highlighted:
+            sel.highlighted = option_index
+        elif option_index is None and event.widget is not sel:
+            return
+        self._sync_prompt_preview_from_selection_list()
+
+    def on_selection_list_selection_highlighted(
+        self,
+        event: SelectionList.SelectionHighlighted,
+    ) -> None:
+        if event.selection_list.id != "prompts-selection":
+            return
+        self._update_prompt_preview(str(event.selection.value))
+
+    def on_selection_list_selection_toggled(
+        self,
+        event: SelectionList.SelectionToggled,
+    ) -> None:
+        if event.selection_list.id != "prompts-selection":
+            return
+        self._sync_prompt_preview_from_selection_list()
+
+    def on_selection_list_selected_changed(
+        self,
+        event: SelectionList.SelectedChanged,
+    ) -> None:
+        if event.selection_list.id != "prompts-selection":
+            return
+        self._sync_prompt_preview_from_selection_list()
+
+    def on_mouse_move(self, event: events.MouseMove) -> None:
+        self._sync_prompt_preview_from_pointer_event(event)
+
+    def on_mouse_scroll_up(self, event: events.MouseScrollUp) -> None:
+        self._sync_prompt_preview_from_pointer_event(event)
+
+    def on_mouse_scroll_down(self, event: events.MouseScrollDown) -> None:
+        self._sync_prompt_preview_from_pointer_event(event)
+
+    def on_click(self, event: events.Click) -> None:
+        self._sync_prompt_preview_from_pointer_event(event)
 
     def _refresh_step4_note(self) -> None:
         has_single = any(a.startswith("Single_") for a in self._sel_attacks)

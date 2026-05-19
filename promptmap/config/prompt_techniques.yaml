@@ -24,6 +24,9 @@ prompt_techniques:
   Hallucination_Induction_Attack:
     description: "Prompts the model to generate plausible-sounding but fabricated entities (e.g., non-existent packages, URLs) for downstream exploitation."
 
+  Publish_Hallucinated_Entities:
+    description: "Leverages hallucinated entities by prompting the model to recommend or reference plausible-looking packages, websites, organizations, or contact points that an adversary could later publish and control."
+
   Special_Case_Attack:
     description: "Adds a conditional clause (e.g., 'if this is X, then do Y') to camouflage the malicious instruction inside an apparently scoped trigger."
 
