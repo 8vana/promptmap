@@ -21,13 +21,14 @@ from .common import (
     yaml_scalar,
     normalize_attack_id,
 )
+from .forger import ForgeConfig, build_forge_artifacts
 from .ingest import ingest_inputs
 from .planner import PlannerConfig, build_plan, render_plan_markdown
 
 
 def main(argv: list[str] | None = None) -> None:
     argv = list(sys.argv[1:] if argv is None else argv)
-    if argv and argv[0] not in {"scaffold", "plan", "-h", "--help"}:
+    if argv and argv[0] not in {"scaffold", "plan", "forge", "-h", "--help"}:
         argv = ["scaffold", *argv]
     if not argv:
         argv = ["-h"]
@@ -39,6 +40,7 @@ def main(argv: list[str] | None = None) -> None:
     subparsers = parser.add_subparsers(dest="command")
     _build_scaffold_parser(subparsers.add_parser("scaffold", help="Generate a metadata-only scaffold."))
     _build_plan_parser(subparsers.add_parser("plan", help="Create an implementation plan from paper material."))
+    _build_forge_parser(subparsers.add_parser("forge", help="Generate plan-driven draft artifacts from an implementation plan."))
 
     args = parser.parse_args(argv)
     if args.command == "scaffold":
@@ -46,6 +48,9 @@ def main(argv: list[str] | None = None) -> None:
         return
     if args.command == "plan":
         _run_plan(args, parser)
+        return
+    if args.command == "forge":
+        _run_forge(args, parser)
         return
     parser.print_help()
 
@@ -104,6 +109,16 @@ def _build_plan_parser(parser: argparse.ArgumentParser) -> None:
                         help="Staging root directory. Default: staging/attacks")
     parser.add_argument("--force", action="store_true",
                         help="Overwrite existing plan artifacts if present.")
+
+
+def _build_forge_parser(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--attack-id", default=None, help="Attack id used to resolve the staging directory.")
+    parser.add_argument("--staging-dir", default=None,
+                        help="Optional direct path to a staging directory containing implementation_plan.json.")
+    parser.add_argument("--output-dir", default="staging/attacks",
+                        help="Staging root when --staging-dir is not supplied. Default: staging/attacks")
+    parser.add_argument("--force", action="store_true",
+                        help="Overwrite existing forge artifacts if present.")
 
 
 def _run_scaffold(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
@@ -286,6 +301,78 @@ def _run_plan(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None
         "planner_excerpt_chars": len(outcome.planner_excerpt),
         "raw_planner_output_path": "raw_planner_output.json" if outcome.raw_payload is not None else "",
         "raw_planner_response_path": "raw_planner_response.txt" if outcome.raw_payload is not None else "",
+    }
+    write_text(
+        staging_dir / "manifest.json",
+        json.dumps(existing_manifest, indent=2, ensure_ascii=False) + "\n",
+    )
+    print(staging_dir)
+
+
+def _run_forge(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
+    if not args.staging_dir and not args.attack_id:
+        parser.error("forge requires either --staging-dir or --attack-id")
+
+    if args.staging_dir:
+        staging_dir = Path(args.staging_dir)
+        attack_id = normalize_attack_id(args.attack_id or staging_dir.name)
+    else:
+        attack_id = normalize_attack_id(args.attack_id)
+        staging_dir = Path(args.output_dir) / attack_id
+
+    plan_path = staging_dir / "implementation_plan.json"
+    if not plan_path.exists():
+        parser.error(f"Missing implementation plan: {plan_path}")
+
+    try:
+        ensure_file_overwrite_allowed(
+            staging_dir,
+            [
+                "attack_module.py",
+                "attack_catalog.yaml",
+                "benchmark_notes.md",
+                "review_checklist.md",
+            ],
+            force=args.force,
+        )
+    except ValueError as exc:
+        parser.error(str(exc))
+
+    try:
+        outcome = build_forge_artifacts(
+            ForgeConfig(
+                attack_id=attack_id,
+                staging_dir=staging_dir,
+            )
+        )
+    except ValueError as exc:
+        parser.error(str(exc))
+
+    write_text(staging_dir / "attack_module.py", outcome.attack_module_text)
+    write_text(staging_dir / "attack_catalog.yaml", outcome.attack_catalog_text)
+    write_text(staging_dir / "benchmark_notes.md", outcome.benchmark_notes_text)
+    write_text(staging_dir / "review_checklist.md", outcome.review_checklist_text)
+
+    existing_manifest = _load_existing_manifest(staging_dir / "manifest.json")
+    existing_manifest["attack_id"] = outcome.attack_id
+    existing_manifest["display_name"] = outcome.display_name
+    existing_manifest["family"] = outcome.family
+    existing_manifest["module_name"] = outcome.module_name
+    existing_manifest["class_name"] = outcome.class_name
+    existing_manifest["registered_name"] = outcome.registered_name
+    existing_manifest.setdefault("staging_dir", str(staging_dir))
+    existing_manifest["promotion_targets"] = {
+        "attack_module": f"promptmap/attacks/{outcome.module_name}.py",
+        "catalog_entry": f"promptmap/catalog/attacks/{outcome.attack_id}.yaml",
+    }
+    existing_manifest["forge_phase_b"] = {
+        "forge_backend_used": "heuristic",
+        "implementation_plan_json_path": "implementation_plan.json",
+        "attack_module_path": "attack_module.py",
+        "attack_catalog_path": "attack_catalog.yaml",
+        "benchmark_notes_path": "benchmark_notes.md",
+        "review_checklist_path": "review_checklist.md",
+        "py_compile_ok": outcome.py_compile_ok,
     }
     write_text(
         staging_dir / "manifest.json",

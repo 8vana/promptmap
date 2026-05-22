@@ -1,0 +1,24 @@
+attack_id: radial
+import_path: promptmap.attacks.radial_attack:RadialAttack
+registered_name: Single_Radial_Attack
+display_name: Radial Attack
+family: single_turn
+description: RADIAL is a jailbreak attack method that analyzes the inherent response tendencies
+  of LLMs by measuring generation probabilities for affirmative vs. rejection responses
+  to real-world instructions. It then strategically splices high-scoring real-world
+  instructions (those that induce affirmative responses) around malicious instructions
+  to bypass safety mechanisms.
+source_type: generated
+paper_title: 'Analyzing the Inherent Response Tendency of LLMs: Real-World Instructions-Driven
+  Jailbreak'
+paper_url: https://arxiv.org/abs/2312.04127
+paper_year: null
+prompt_technique_aware: false
+supports_benchmark: false
+target_modes: [api, stateless]
+required_capabilities: [scorer_llm]
+tags: [generated, research, paper_forge, single_turn, jailbreak]
+default_params: {num_affirmation_responses: 20, num_rejection_responses: 20, real_world_instructions_count: 30000,
+  spliced_instructions_count: [2, 4], malicious_instruction_position: end}
+benchmark_defaults: {}
+compatible_atlas_techniques: []
