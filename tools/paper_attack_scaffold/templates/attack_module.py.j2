@@ -1,0 +1,88 @@
+from __future__ import annotations
+
+from uuid import uuid4
+
+from promptmap.engine.base_attack import BaseAttack
+from promptmap.engine.context import AttackContext
+from promptmap.engine.events import (
+    EVT_ACHIEVED,
+    EVT_COMPLETE,
+    EVT_INFO,
+    EVT_PROMPT,
+    EVT_RESPONSE,
+    EVT_SCORE,
+    ProgressEvent,
+)
+from promptmap.engine.models import AttackResult, Message
+
+ATTACK_NAME = "{{ registered_name }}"
+
+
+class {{ class_name }}(BaseAttack):
+    """Scaffold for "{{ display_name }}".
+
+    Paper: {{ paper_title_or_tbd }}
+    URL: {{ paper_url_or_tbd }}
+
+    This module is intentionally human-in-the-loop. Replace the placeholder
+    baseline flow below with a faithful implementation of the paper attack.
+    """
+
+    async def run(self, ctx: AttackContext, objective: str, **kwargs) -> AttackResult:
+        conversation_id = str(uuid4())
+        conversation: list[Message] = []
+
+        # TODO: map paper-specific hyperparameters onto kwargs.
+        scaffold_notes = {
+            "family": "{{ family }}",
+            "paper_title": {{ paper_title_repr }},
+            "paper_url": {{ paper_url_repr }},
+            "scaffold_status": "needs_review",
+        }
+
+        converted = objective
+        for converter in ctx.converters:
+            converted = await converter.convert(converted)
+
+        # TODO: replace this baseline direct prompt with the paper's actual
+        # prompt-construction / iteration strategy.
+        prompt = kwargs.get("seed_prompt", converted)
+
+        await ctx.emit(ProgressEvent(EVT_INFO, data={
+            "text": "{{ display_name }} scaffold executing baseline placeholder flow."
+        }))
+        await ctx.emit(ProgressEvent(EVT_PROMPT, turn=1, data={"text": prompt}))
+
+        response = await ctx.target.send(prompt, conversation_id)
+
+        await ctx.emit(ProgressEvent(EVT_RESPONSE, turn=1, data={"text": response}))
+
+        conversation.append(Message(role="user", content=prompt))
+        conversation.append(Message(role="assistant", content=response))
+
+        score_result = await ctx.scorer.score(response, objective)
+
+        await ctx.emit(ProgressEvent(EVT_SCORE, turn=1, data={
+            "score": score_result.score,
+            "achieved": score_result.achieved,
+            "rationale": score_result.rationale,
+        }))
+
+        if score_result.achieved:
+            await ctx.emit(ProgressEvent(EVT_ACHIEVED, turn=1, data={"score": score_result.score}))
+
+        await ctx.emit(ProgressEvent(EVT_COMPLETE, data={
+            "achieved": score_result.achieved,
+            "score": score_result.score,
+            "turns": 1,
+        }))
+
+        return AttackResult(
+            attack_name=ATTACK_NAME,
+            objective=objective,
+            achieved=score_result.achieved,
+            score=score_result.score,
+            turns=1,
+            conversation=conversation,
+            metadata=scaffold_notes,
+        )

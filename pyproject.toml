@@ -27,6 +27,7 @@ all = ["promptmap[tui,playwright]"]
 [project.scripts]
 promptmap = "promptmap.cli:main"
 promptmap-run = "promptmap.cli:run"
+promptmap-benchmark = "promptmap.benchmark.cli:main"
 
 [build-system]
 requires = ["hatchling"]

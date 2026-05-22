@@ -1,0 +1,26 @@
+# Benchmark Notes: {{ display_name }}
+
+## Initial Recommendation
+
+- `supports_benchmark`: `{{ supports_benchmark_display }}`
+- Reason: generated scaffolds should be reviewed before being admitted to a standardized benchmark lane.
+
+## Questions To Resolve
+
+- Does the paper define a stable parameter set for repeated evaluation?
+- Does the attack require hidden state, tool access, or environment assumptions that make benchmarking unstable?
+- Should benchmark defaults differ from development defaults?
+- Is the attack comparable across API-style and browser-style targets?
+
+## Suggested Starting Defaults
+
+```yaml
+default_params: {{ default_params_yaml }}
+benchmark_defaults: {{ benchmark_defaults_yaml }}
+```
+
+## Notes
+
+- Paper: {{ paper_title_or_tbd }}
+- URL: {{ paper_url_or_tbd }}
+- Family: {{ family }}

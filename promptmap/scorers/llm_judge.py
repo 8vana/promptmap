@@ -28,12 +28,18 @@ class LLMJudgeScorer(BaseScorer):
     `achieved` is True when the normalized score >= threshold (default 0.7 → 7/10).
     """
 
-    def __init__(self, judge_target: TargetAdapter, threshold: float = 0.7):
+    def __init__(
+        self,
+        judge_target: TargetAdapter,
+        threshold: float = 0.7,
+        prompt_template: str = _LIKERT_PROMPT,
+    ):
         self._judge = judge_target
         self._threshold = threshold
+        self._prompt_template = prompt_template
 
     async def score(self, response: str, objective: str) -> ScorerResult:
-        prompt = _LIKERT_PROMPT.format(objective=objective, response=response)
+        prompt = self._prompt_template.format(objective=objective, response=response)
         raw = await self._judge.send(prompt, conversation_id="scorer-stateless")
         self._judge.reset_conversation("scorer-stateless")
 

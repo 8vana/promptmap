@@ -1,0 +1,8 @@
+mode_id: agent
+display_name: Agent Mode
+description: Use an autonomous attack orchestrator that selects among available attack primitives.
+kind: orchestrated
+import_path: promptmap.attacks.agent.attack_agent:AttackAgent
+supports_tui: true
+supports_cli: true
+supports_benchmark: false

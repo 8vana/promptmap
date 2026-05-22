@@ -22,16 +22,6 @@ def main() -> None:
 # Headless run mode (promptmap-run)
 # ---------------------------------------------------------------------------
 
-# Short name → (registered attack id, importable class path).
-_ATTACKS: dict[str, tuple[str, str]] = {
-    "single_pi":       ("Single_PI_Attack",             "promptmap.attacks.single_pi_attack:SinglePIAttack"),
-    "crescendo":       ("Multi_Crescendo_Attack",       "promptmap.attacks.multi_crescendo_attack:CrescendoAttack"),
-    "pair":            ("Multi_PAIR_Attack",            "promptmap.attacks.multi_pair_attack:PAIRAttack"),
-    "tap":             ("Multi_TAP_Attack",             "promptmap.attacks.multi_tap_attack:TAPAttack"),
-    "chunked_request": ("Multi_Chunked_Request_Attack", "promptmap.attacks.multi_chunked_request_attack:ChunkedRequestAttack"),
-    "agent":           ("AttackAgent",                  "promptmap.attacks.agent.attack_agent:AttackAgent"),
-}
-
 # class name → import path. Each entry corresponds to a TargetAdapter subclass
 # that can be instantiated from a target-config file.
 _ADAPTERS: dict[str, str] = {
@@ -67,7 +57,6 @@ def run() -> None:
     import asyncio
     import json
     import os
-    from datetime import datetime, timezone
 
     import yaml
 
@@ -75,10 +64,14 @@ def run() -> None:
     from promptmap.engine.logged_target import LoggedTargetAdapter
     from promptmap.engine.logging_setup import setup_logging
     from promptmap.memory.session_memory import SessionMemory
+    from promptmap.registry import get_attack_registry, get_mode_registry
     from promptmap.scorers.llm_judge import LLMJudgeScorer
     from promptmap.targets.factory import create_target_adapter
     from promptmap.converters.instantiate_converters import instantiate_converters
     from promptmap.utils import load_dataset
+
+    attack_registry = get_attack_registry()
+    mode_registry = get_mode_registry()
 
     parser = argparse.ArgumentParser(
         prog="promptmap-run",
@@ -86,8 +79,10 @@ def run() -> None:
     )
     parser.add_argument("--target-config", required=True,
                         help="YAML/JSON file describing the TargetAdapter to attack.")
-    parser.add_argument("--attack", required=True, choices=sorted(_ATTACKS),
-                        help="Attack to run.")
+    parser.add_argument("--mode", default="manual", choices=mode_registry.list_mode_ids(),
+                        help="Execution mode. 'manual' runs one selected attack primitive; 'agent' orchestrates multiple attacks.")
+    parser.add_argument("--attack", default=None, choices=attack_registry.list_attack_ids(),
+                        help="Attack primitive to run in manual mode.")
     parser.add_argument("--signature", required=True,
                         help="ATLAS technique ID (loaded from signatures.yaml) or a raw objective string.")
     parser.add_argument("--scorer-model", default=None,
@@ -105,6 +100,11 @@ def run() -> None:
     parser.add_argument("--debug", action="store_true",
                         help="Raise log level to DEBUG.")
     args = parser.parse_args()
+
+    if args.mode == "manual" and not args.attack:
+        parser.error("--attack is required when --mode manual is used.")
+    if args.mode != "manual" and args.attack:
+        parser.error("--attack may only be used with --mode manual.")
 
     setup_logging(level="DEBUG" if args.debug else None)
 
@@ -149,9 +149,15 @@ def run() -> None:
     # ------------------------------------------------------------------ #
     converter_names = [n.strip() for n in args.converters.split(",") if n.strip()]
     converters = instantiate_converters(converter_names) if converter_names else []
-
-    attack_id, attack_cls = _load_attack(args.attack)
-    attack = attack_cls()
+    available_attacks = attack_registry.create_available_attacks()
+    runner = None
+    attack_label = args.attack
+    if args.mode == "manual":
+        runner = attack_registry.create(args.attack)
+    else:
+        runner_cls = mode_registry.load_class(args.mode)
+        runner = runner_cls()
+        attack_label = args.mode
 
     ctx = AttackContext(
         target=target,
@@ -159,7 +165,7 @@ def run() -> None:
         scorer=scorer,
         converters=converters,
         memory=SessionMemory(),
-        available_attacks={attack_id: attack},
+        available_attacks=available_attacks,
         progress_queue=None,
         language=args.language,
     )
@@ -187,14 +193,17 @@ def run() -> None:
             for objective, prompt_technique in objectives:
                 kwargs = {"prompt_technique": prompt_technique} if prompt_technique else {}
                 try:
-                    result = await attack.run(ctx, objective, **kwargs)
+                    if args.mode == "manual":
+                        result = await runner.run(ctx, objective, **kwargs)
+                    else:
+                        result = await runner.run(ctx, objective)
                 except TypeError:
                     # Attacks that do not accept prompt_technique kwarg.
-                    result = await attack.run(ctx, objective)
+                    result = await runner.run(ctx, objective)
 
                 results = result if isinstance(result, list) else [result]
                 for r in results:
-                    line = _result_to_jsonl(r, args.attack, args.signature)
+                    line = _result_to_jsonl(r, attack_label, args.signature)
                     sys.stdout.write(json.dumps(line, ensure_ascii=False, default=str) + "\n")
                     sys.stdout.flush()
                     if r.achieved:
@@ -248,13 +257,6 @@ def _instantiate_adapter(cfg: dict):
         init["api_key"] = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or ""
 
     return cls(**init)
-
-
-def _load_attack(short_name: str):
-    """Return (registered_id, attack_class) for a CLI short name."""
-    registered_id, dotted = _ATTACKS[short_name]
-    return registered_id, _import_object(dotted)
-
 
 def _import_object(dotted: str):
     """Import 'pkg.mod:Name' and return Name."""

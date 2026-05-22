@@ -1,0 +1,123 @@
+{
+  "summary": "RADIAL is a jailbreak attack method that analyzes the inherent response tendencies of LLMs by measuring generation probabilities for affirmative vs. rejection responses to real-world instructions. It then strategically splices high-scoring real-world instructions (those that induce affirmative responses) around malicious instructions to bypass safety mechanisms.",
+  "family": "prompt_injection",
+  "target_modes": [
+    "text_generation"
+  ],
+  "required_capabilities": [
+    "probability_extraction",
+    "instruction_ranking",
+    "prompt_construction",
+    "response_analysis"
+  ],
+  "supports_benchmark_recommendation": true,
+  "default_params": {
+    "num_affirmation_responses": 20,
+    "num_rejection_responses": 20,
+    "real_world_instructions_count": 30000,
+    "spliced_instructions_count": [
+      2,
+      4
+    ],
+    "malicious_instruction_position": "end"
+  },
+  "algorithm_steps": [
+    {
+      "step_id": "construct_responses",
+      "title": "Construct Affirmation and Rejection Responses",
+      "description": "Create 20 general affirmation responses (e.g., 'Sure, here's the information.') and 20 general rejection responses (e.g., 'Sorry, I am unable to provide the information').",
+      "evidence_refs": [
+        "Section 3.2",
+        "App. A"
+      ],
+      "status": "ambiguous",
+      "notes": "Specific response templates are referenced in App. A which is not provided in the excerpt"
+    },
+    {
+      "step_id": "collect_instructions",
+      "title": "Collect Real-World Instructions",
+      "description": "Gather 30,000 real-world English instructions from the alpaca official repository to use as candidate instructions for analysis.",
+      "evidence_refs": [
+        "Section 3.2"
+      ],
+      "status": "clear",
+      "notes": "Source specified as alpaca-lora GitHub repository"
+    },
+    {
+      "step_id": "calculate_probabilities",
+      "title": "Calculate Response Tendencies",
+      "description": "For each real-world instruction X, calculate affirmation tendency (Ta) and rejection tendency (Tr) using generation probabilities of constructed responses.",
+      "evidence_refs": [
+        "Section 3.2",
+        "Mathematical formulas"
+      ],
+      "status": "ambiguous",
+      "notes": "Mathematical formulas are present but not decoded in the excerpt"
+    },
+    {
+      "step_id": "score_instructions",
+      "title": "Score and Rank Instructions",
+      "description": "Calculate a score for each instruction reflecting the LLM's inherent tendency to affirm, then rank instructions by score.",
+      "evidence_refs": [
+        "Section 3.2"
+      ],
+      "status": "ambiguous",
+      "notes": "Scoring formula referenced but not decoded"
+    },
+    {
+      "step_id": "filter_instructions",
+      "title": "Filter Text Manipulation Instructions",
+      "description": "Remove text manipulation instructions such as translation or text rewriting commands that would manipulate the malicious instruction itself.",
+      "evidence_refs": [
+        "Section 3.3"
+      ],
+      "status": "clear",
+      "notes": "Examples provided: 'Please translate the following sentence' or 'Please change the following text'"
+    },
+    {
+      "step_id": "select_top_instructions",
+      "title": "Select High-Scoring Instructions",
+      "description": "Select real-world instructions from the top of the ranking that can inherently induce LLMs to generate affirmation responses.",
+      "evidence_refs": [
+        "Section 3.3"
+      ],
+      "status": "ambiguous",
+      "notes": "Number of top instructions to select not specified"
+    },
+    {
+      "step_id": "splice_instructions",
+      "title": "Strategically Splice Instructions",
+      "description": "Combine 2 or 4 selected real-world instructions with the malicious instruction, placing the malicious instruction at the end of the prompt for optimal performance.",
+      "evidence_refs": [
+        "Section 3.3"
+      ],
+      "status": "clear",
+      "notes": "Empirically determined that 2 or 4 instructions work best, with malicious instruction at the end"
+    }
+  ],
+  "prompt_fragments": [
+    {
+      "name": "affirmation_response_example",
+      "text": "Sure, here's the information.",
+      "evidence_refs": [
+        "Section 3.2"
+      ]
+    },
+    {
+      "name": "rejection_response_example",
+      "text": "Sorry, I am unable to provide the information",
+      "evidence_refs": [
+        "Section 3.2"
+      ]
+    }
+  ],
+  "ambiguities": [
+    "Mathematical formulas for calculating probabilities and scores are not decoded in the excerpt",
+    "Specific affirmation and rejection response templates are referenced in App. A but not provided",
+    "Exact number of top-ranked instructions to select is not specified",
+    "Specific criteria for filtering text manipulation instructions beyond examples",
+    "Implementation details for probability extraction from LLMs",
+    "Evaluation results table appears truncated"
+  ],
+  "divergences": []
+}

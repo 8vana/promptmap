@@ -9,14 +9,10 @@ from textual.binding import Binding
 
 from promptmap.engine.context import AttackContext
 from promptmap.memory.session_memory import SessionMemory
+from promptmap.registry import get_attack_registry
 from promptmap.targets.http_target import HTTPTargetAdapter
 from promptmap.targets.factory import create_target_adapter, get_available_providers, get_missing_env_vars, PROVIDER_LABELS
 from promptmap.scorers.llm_judge import LLMJudgeScorer
-from promptmap.attacks.single_pi_attack import SinglePIAttack
-from promptmap.attacks.multi_crescendo_attack import CrescendoAttack
-from promptmap.attacks.multi_pair_attack import PAIRAttack
-from promptmap.attacks.multi_tap_attack import TAPAttack
-from promptmap.attacks.multi_chunked_request_attack import ChunkedRequestAttack
 
 _CONFIG_FILE = os.path.expanduser("~/.promptmap_config.json")
 
@@ -183,13 +179,7 @@ class PromptMapApp(App):
         )
         scorer = LLMJudgeScorer(judge_target=score_llm)
 
-        available_attacks: dict = {
-            "Single_PI_Attack":             SinglePIAttack(),
-            "Multi_Crescendo_Attack":       CrescendoAttack(),
-            "Multi_PAIR_Attack":            PAIRAttack(),
-            "Multi_TAP_Attack":             TAPAttack(),
-            "Multi_Chunked_Request_Attack": ChunkedRequestAttack(),
-        }
+        available_attacks = get_attack_registry().create_available_attacks()
 
         return AttackContext(
             target=objective_target,
