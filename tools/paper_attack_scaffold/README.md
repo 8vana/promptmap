@@ -15,11 +15,16 @@ The tool currently supports:
 
 - `scaffold`
 - `plan`
+- `forge`
 
 `scaffold` is the original metadata-first skeleton generator.
 
 `plan` is the Phase A Simple JBF-FORGE planner. It normalizes paper material and
 emits an implementation plan with evidence separation.
+
+`forge` is the Phase B coder MVP. It consumes `implementation_plan.json` from a
+staging directory and regenerates a plan-driven `attack_module.py` plus updated
+catalog and review artifacts.
 
 ## What `scaffold` generates
 
@@ -135,6 +140,36 @@ Planner behavior:
   Uses the local heuristic planner only.
 - `--planner-backend llm`
   Requires a configured provider/model and fails if the LLM path cannot run.
+
+## `forge` usage
+
+Run `forge` after `plan` has produced `implementation_plan.json`.
+
+From an attack id under the default staging root:
+
+```bash
+python -m tools.paper_attack_scaffold forge \
+  --attack-id radial \
+  --output-dir staging/attacks \
+  --force
+```
+
+Or point directly at a staging directory:
+
+```bash
+python -m tools.paper_attack_scaffold forge \
+  --staging-dir staging/attacks/radial \
+  --force
+```
+
+`forge` currently uses a local heuristic coder. It does not require an LLM.
+It writes:
+
+- `attack_module.py`
+- `attack_catalog.yaml`
+- `benchmark_notes.md`
+- `review_checklist.md`
+- `manifest.json` updated with `forge_phase_b`
 
 ## Evidence Model
 

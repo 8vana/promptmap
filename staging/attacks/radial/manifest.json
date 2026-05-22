@@ -17,5 +17,22 @@
     "planner_excerpt_chars": 18000,
     "raw_planner_output_path": "raw_planner_output.json",
     "raw_planner_response_path": "raw_planner_response.txt"
+  },
+  "family": "single_turn",
+  "module_name": "radial_attack",
+  "class_name": "RadialAttack",
+  "registered_name": "Single_Radial_Attack",
+  "promotion_targets": {
+    "attack_module": "promptmap/attacks/radial_attack.py",
+    "catalog_entry": "promptmap/catalog/attacks/radial.yaml"
+  },
+  "forge_phase_b": {
+    "forge_backend_used": "heuristic",
+    "implementation_plan_json_path": "implementation_plan.json",
+    "attack_module_path": "attack_module.py",
+    "attack_catalog_path": "attack_catalog.yaml",
+    "benchmark_notes_path": "benchmark_notes.md",
+    "review_checklist_path": "review_checklist.md",
+    "py_compile_ok": true
   }
 }
