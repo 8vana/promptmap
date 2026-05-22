@@ -302,16 +302,9 @@ def build_language_directive(language: str | None) -> str:
     )
 
 
-# Attack class names registered in tui/app.py:build_context. Kept here so the
-# integrity check below can flag stale entries in atlas_catalog.yaml without
-# importing the TUI module.
-_REGISTERED_ATTACKS = {
-    "Single_PI_Attack",
-    "Multi_Crescendo_Attack",
-    "Multi_PAIR_Attack",
-    "Multi_TAP_Attack",
-    "Multi_Chunked_Request_Attack",
-}
+def _registered_attack_names() -> set[str]:
+    from promptmap.registry import get_attack_registry
+    return set(get_attack_registry().list_registered_names())
 
 
 def _validate_languages_block(blk_or_legacy_value, where: str, require_placeholder: bool = False) -> List[str]:
@@ -364,6 +357,28 @@ def validate_dataset_references() -> List[str]:
         errors.append(f"config/prompt_techniques.yaml: failed to load ({e})")
         techniques = {}
     valid_tech_keys = set(techniques.keys())
+    try:
+        registered_attacks = _registered_attack_names()
+    except Exception as e:
+        errors.append(f"catalog/attacks: failed to load registry ({e})")
+        registered_attacks = set()
+    try:
+        from promptmap.registry import get_attack_registry, get_mode_registry
+        errors.extend(
+            f"catalog/attacks/{err}" for err in get_attack_registry().validate()
+        )
+        errors.extend(
+            f"catalog/modes/{err}" for err in get_mode_registry().validate()
+        )
+    except Exception as e:
+        errors.append(f"catalog registry validation failed ({e})")
+    try:
+        from promptmap.benchmark.profiles import validate_benchmark_profiles
+        errors.extend(
+            f"datasets/benchmark_profiles/{err}" for err in validate_benchmark_profiles()
+        )
+    except Exception as e:
+        errors.append(f"benchmark profile validation failed ({e})")
 
     # 1) atlas_catalog: each technique's tactics + compatible_attacks must be known.
     for tid, t in (catalog.get("techniques") or {}).items():
@@ -373,10 +388,10 @@ def validate_dataset_references() -> List[str]:
                     f"atlas_catalog.yaml: technique '{tid}' references unknown tactic '{tac}'"
                 )
         for atk in t.get("compatible_attacks", []) or []:
-            if atk not in _REGISTERED_ATTACKS:
+            if atk not in registered_attacks:
                 errors.append(
                     f"atlas_catalog.yaml: technique '{tid}' references unknown "
-                    f"compatible_attack '{atk}' (not registered in tui/app.py)"
+                    f"compatible_attack '{atk}' (not registered in attack catalog)"
                 )
 
     # 2) signatures: nested structure

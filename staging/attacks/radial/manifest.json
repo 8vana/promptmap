@@ -1,0 +1,21 @@
+{
+  "attack_id": "radial",
+  "display_name": "Radial Attack",
+  "staging_dir": "staging/attacks/radial",
+  "planner_phase_a": {
+    "planner_backend_used": "llm",
+    "planner_backend_requested": "auto",
+    "provider": "bedrock",
+    "model": "us.anthropic.claude-sonnet-4-20250514-v1:0",
+    "paper_title": "Analyzing the Inherent Response Tendency of LLMs: Real-World Instructions-Driven Jailbreak",
+    "paper_url": "https://arxiv.org/abs/2312.04127",
+    "input_manifest_path": "input_manifest.json",
+    "implementation_plan_json_path": "implementation_plan.json",
+    "implementation_plan_md_path": "implementation_plan.md",
+    "paper_markdown_path": "paper.md",
+    "paper_json_path": "paper.json",
+    "planner_excerpt_chars": 18000,
+    "raw_planner_output_path": "raw_planner_output.json",
+    "raw_planner_response_path": "raw_planner_response.txt"
+  }
+}

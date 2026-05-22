@@ -28,6 +28,7 @@ from textual.widgets import (
 )
 
 from promptmap.converters.instantiate_converters import instantiate_converters
+from promptmap.registry import get_attack_registry
 from promptmap.utils import (
     apply_jailbreak_method, apply_response_converter_method,
     list_converters, list_jailbreak_templates, list_response_converters,
@@ -41,6 +42,14 @@ _NO_TECHNIQUE_VALUE = ""
 
 _STEP_IDS = ["step-1", "step-2", "step-3", "step-4", "step-5", "step-6"]
 _STEP_LABELS = ["Technique", "Attacks", "Prompts", "Jailbreak", "Converters", "Review"]
+
+
+def _is_single_turn_attack(registered_name: str) -> bool:
+    try:
+        spec = get_attack_registry().get_spec_by_registered_name(registered_name)
+    except KeyError:
+        return registered_name.startswith("Single_")
+    return spec.family == "single_turn"
 
 
 class ManualScanScreen(Screen):
@@ -496,16 +505,16 @@ class ManualScanScreen(Screen):
         self._sync_prompt_preview_from_pointer_event(event)
 
     def _refresh_step4_note(self) -> None:
-        has_single = any(a.startswith("Single_") for a in self._sel_attacks)
+        has_single = any(_is_single_turn_attack(a) for a in self._sel_attacks)
         note = self.query_one("#step-4-note", Label)
         jb = self.query_one("#jailbreak-select", Select)
         rs = self.query_one("#response-select", Select)
         if has_single:
-            note.update("Applied to Single_* attack prompts only.")
+            note.update("Applied to single-turn attack prompts only.")
             jb.disabled = False
             rs.disabled = False
         else:
-            note.update("(Skipped — no Single_* attack selected. Will be ignored.)")
+            note.update("(Skipped — no single-turn attack selected. Will be ignored.)")
             jb.disabled = True
             rs.disabled = True
 
@@ -617,7 +626,7 @@ class ManualScanScreen(Screen):
 
         jobs: list[ExecutionJob] = []
         for attack_id in self._sel_attacks:
-            objectives = single_objectives if attack_id.startswith("Single_") else raw_prompts
+            objectives = single_objectives if _is_single_turn_attack(attack_id) else raw_prompts
             for objective, ptech in zip(objectives, prompt_techs):
                 jobs.append(ExecutionJob(
                     attack_id=attack_id,

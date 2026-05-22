@@ -1,0 +1,14 @@
+attack_id: single_pi
+import_path: promptmap.attacks.single_pi_attack:SinglePIAttack
+registered_name: Single_PI_Attack
+display_name: Single PI Attack
+family: single_turn
+description: Send adversarial prompts directly to the target and score the response.
+source_type: builtin
+prompt_technique_aware: false
+supports_benchmark: true
+target_modes: [api, browser, stateless]
+required_capabilities: [scorer_llm]
+tags: [direct, prompt_injection, builtin]
+default_params: {}
+benchmark_defaults: {}

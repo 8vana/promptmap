@@ -1,0 +1,7 @@
+mode_id: manual
+display_name: Manual Mode
+description: Run a single selected attack primitive against each resolved objective.
+kind: manual
+supports_tui: true
+supports_cli: true
+supports_benchmark: false

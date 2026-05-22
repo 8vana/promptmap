@@ -1,0 +1,21 @@
+attack_id: crescendo
+import_path: promptmap.attacks.multi_crescendo_attack:CrescendoAttack
+registered_name: Multi_Crescendo_Attack
+display_name: Crescendo Attack
+family: multi_turn
+description: Gradually escalate toward the objective across a multi-turn conversation.
+source_type: builtin
+paper_title: Great, Now Write an Article About That
+paper_url: https://arxiv.org/abs/2404.01833
+paper_year: 2024
+prompt_technique_aware: true
+supports_benchmark: true
+target_modes: [api, browser, stateful]
+required_capabilities: [scorer_llm, adversarial_llm]
+tags: [multi_turn, escalation, builtin]
+default_params:
+  max_turns: 10
+  max_backtracks: 5
+benchmark_defaults:
+  max_turns: 10
+  max_backtracks: 5

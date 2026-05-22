@@ -6,3 +6,5 @@ openai
 anthropic
 google-genai
 boto3
+docling
+

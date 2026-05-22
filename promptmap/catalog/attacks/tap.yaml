@@ -1,0 +1,27 @@
+attack_id: tap
+import_path: promptmap.attacks.multi_tap_attack:TAPAttack
+registered_name: Multi_TAP_Attack
+display_name: TAP Attack
+family: multi_turn
+description: Explore and prune a tree of candidate attacks to keep the strongest branches.
+source_type: builtin
+paper_title: Tree of Attacks with Pruning
+paper_url: https://arxiv.org/abs/2312.02119
+paper_year: 2023
+prompt_technique_aware: true
+supports_benchmark: true
+target_modes: [api, browser, stateful]
+required_capabilities: [scorer_llm, adversarial_llm]
+tags: [multi_turn, search, builtin]
+default_params:
+  width: 3
+  depth: 5
+  branching_factor: 2
+  on_topic_check: true
+  threshold: 0.8
+benchmark_defaults:
+  width: 3
+  depth: 5
+  branching_factor: 2
+  on_topic_check: true
+  threshold: 0.8

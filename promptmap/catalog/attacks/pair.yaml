@@ -1,0 +1,21 @@
+attack_id: pair
+import_path: promptmap.attacks.multi_pair_attack:PAIRAttack
+registered_name: Multi_PAIR_Attack
+display_name: PAIR Attack
+family: multi_turn
+description: Iterative adversarial refinement based on target feedback and judge scores.
+source_type: builtin
+paper_title: Jailbreaking Black Box LLMs in Twenty Queries
+paper_url: https://arxiv.org/abs/2310.08419
+paper_year: 2023
+prompt_technique_aware: true
+supports_benchmark: true
+target_modes: [api, browser, stateful]
+required_capabilities: [scorer_llm, adversarial_llm]
+tags: [multi_turn, iterative, builtin]
+default_params:
+  max_iterations: 20
+  threshold: 0.7
+benchmark_defaults:
+  max_iterations: 10
+  threshold: 0.7

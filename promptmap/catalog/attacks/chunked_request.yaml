@@ -1,0 +1,20 @@
+attack_id: chunked_request
+import_path: promptmap.attacks.multi_chunked_request_attack:ChunkedRequestAttack
+registered_name: Multi_Chunked_Request_Attack
+display_name: Chunked Request Attack
+family: multi_turn
+description: Request the target objective in small chunks to bypass output-length or response-level controls.
+source_type: builtin
+paper_title: ChunkedRequestAttack
+paper_url: https://github.com/Azure/PyRIT
+prompt_technique_aware: false
+supports_benchmark: true
+target_modes: [api, browser, stateless]
+required_capabilities: [scorer_llm]
+tags: [multi_turn, extraction, builtin]
+default_params:
+  chunk_size: 50
+  max_chunks: 10
+benchmark_defaults:
+  chunk_size: 50
+  max_chunks: 10

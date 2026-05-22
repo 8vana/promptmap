@@ -1,0 +1,14 @@
+Attack id: {attack_id}
+Display name: {display_name}
+Paper title: {paper_title}
+Paper URL: {paper_url}
+Family hint: {family_hint}
+
+Operator notes:
+{notes_text}
+
+Paper excerpt:
+{paper_excerpt}
+
+Produce a conservative implementation plan for PromptMap.
+If you are unsure, keep the ambiguity explicit.
