@@ -21,6 +21,7 @@ from .common import (
     yaml_scalar,
     normalize_attack_id,
 )
+from .auditor import AuditConfig, run_audit
 from .forger import ForgeConfig, build_forge_artifacts
 from .ingest import ingest_inputs
 from .planner import PlannerConfig, build_plan, render_plan_markdown
@@ -28,7 +29,7 @@ from .planner import PlannerConfig, build_plan, render_plan_markdown
 
 def main(argv: list[str] | None = None) -> None:
     argv = list(sys.argv[1:] if argv is None else argv)
-    if argv and argv[0] not in {"scaffold", "plan", "forge", "-h", "--help"}:
+    if argv and argv[0] not in {"scaffold", "plan", "forge", "audit", "-h", "--help"}:
         argv = ["scaffold", *argv]
     if not argv:
         argv = ["-h"]
@@ -41,6 +42,7 @@ def main(argv: list[str] | None = None) -> None:
     _build_scaffold_parser(subparsers.add_parser("scaffold", help="Generate a metadata-only scaffold."))
     _build_plan_parser(subparsers.add_parser("plan", help="Create an implementation plan from paper material."))
     _build_forge_parser(subparsers.add_parser("forge", help="Generate plan-driven draft artifacts from an implementation plan."))
+    _build_audit_parser(subparsers.add_parser("audit", help="Audit plan-to-code coverage for a staging directory."))
 
     args = parser.parse_args(argv)
     if args.command == "scaffold":
@@ -51,6 +53,9 @@ def main(argv: list[str] | None = None) -> None:
         return
     if args.command == "forge":
         _run_forge(args, parser)
+        return
+    if args.command == "audit":
+        _run_audit(args, parser)
         return
     parser.print_help()
 
@@ -119,6 +124,16 @@ def _build_forge_parser(parser: argparse.ArgumentParser) -> None:
                         help="Staging root when --staging-dir is not supplied. Default: staging/attacks")
     parser.add_argument("--force", action="store_true",
                         help="Overwrite existing forge artifacts if present.")
+
+
+def _build_audit_parser(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--attack-id", default=None, help="Attack id used to resolve the staging directory.")
+    parser.add_argument("--staging-dir", default=None,
+                        help="Optional direct path to a staging directory containing implementation_plan.json and attack_module.py.")
+    parser.add_argument("--output-dir", default="staging/attacks",
+                        help="Staging root when --staging-dir is not supplied. Default: staging/attacks")
+    parser.add_argument("--force", action="store_true",
+                        help="Overwrite existing audit artifacts if present.")
 
 
 def _run_scaffold(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
@@ -373,6 +388,64 @@ def _run_forge(args: argparse.Namespace, parser: argparse.ArgumentParser) -> Non
         "benchmark_notes_path": "benchmark_notes.md",
         "review_checklist_path": "review_checklist.md",
         "py_compile_ok": outcome.py_compile_ok,
+    }
+    write_text(
+        staging_dir / "manifest.json",
+        json.dumps(existing_manifest, indent=2, ensure_ascii=False) + "\n",
+    )
+    print(staging_dir)
+
+
+def _run_audit(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
+    if not args.staging_dir and not args.attack_id:
+        parser.error("audit requires either --staging-dir or --attack-id")
+
+    if args.staging_dir:
+        staging_dir = Path(args.staging_dir)
+        attack_id = normalize_attack_id(args.attack_id or staging_dir.name)
+    else:
+        attack_id = normalize_attack_id(args.attack_id)
+        staging_dir = Path(args.output_dir) / attack_id
+
+    try:
+        ensure_file_overwrite_allowed(
+            staging_dir,
+            [
+                "coverage_report.md",
+                "audit_verdict.json",
+                "review_checklist.md",
+            ],
+            force=args.force,
+        )
+    except ValueError as exc:
+        parser.error(str(exc))
+
+    try:
+        outcome = run_audit(
+            AuditConfig(
+                attack_id=attack_id,
+                staging_dir=staging_dir,
+            )
+        )
+    except ValueError as exc:
+        parser.error(str(exc))
+
+    write_text(staging_dir / "coverage_report.md", outcome.coverage_report_text)
+    write_text(
+        staging_dir / "audit_verdict.json",
+        json.dumps(outcome.audit_verdict, indent=2, ensure_ascii=False) + "\n",
+    )
+    write_text(staging_dir / "review_checklist.md", outcome.review_checklist_text)
+
+    existing_manifest = _load_existing_manifest(staging_dir / "manifest.json")
+    existing_manifest.setdefault("attack_id", attack_id)
+    existing_manifest.setdefault("staging_dir", str(staging_dir))
+    existing_manifest["audit_phase_c"] = {
+        "coverage_report_path": "coverage_report.md",
+        "audit_verdict_path": "audit_verdict.json",
+        "review_checklist_path": "review_checklist.md",
+        "verdict": outcome.audit_verdict.get("verdict", ""),
+        "categories": outcome.audit_verdict.get("categories", []),
     }
     write_text(
         staging_dir / "manifest.json",

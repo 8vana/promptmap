@@ -1,0 +1,38 @@
+{
+  "attack_id": "radial",
+  "verdict": "needs_refinement",
+  "categories": [
+    "missing_algorithm_steps",
+    "unsafe_inference_detected",
+    "benchmark_not_advised"
+  ],
+  "module_checks": {
+    "py_compile_ok": true,
+    "py_compile_error": "",
+    "generic_baseline_detected": true
+  },
+  "catalog_checks": {
+    "mismatches": [],
+    "supports_benchmark": false,
+    "source_type": "generated"
+  },
+  "step_coverage": {
+    "implemented": [],
+    "partial": [
+      "construct_responses",
+      "splice_instructions"
+    ],
+    "missing": [
+      "collect_instructions",
+      "calculate_probabilities",
+      "score_instructions",
+      "filter_instructions",
+      "select_top_instructions"
+    ]
+  },
+  "recommended_next_actions": [
+    "Implement the missing algorithm steps in attack_module.py before promotion.",
+    "Replace the generic forge baseline with paper-specific prompt construction and control flow.",
+    "Keep supports_benchmark disabled until the implementation is paper-faithful and tested."
+  ]
+}

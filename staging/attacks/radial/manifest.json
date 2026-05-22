@@ -34,5 +34,16 @@
     "benchmark_notes_path": "benchmark_notes.md",
     "review_checklist_path": "review_checklist.md",
     "py_compile_ok": true
+  },
+  "audit_phase_c": {
+    "coverage_report_path": "coverage_report.md",
+    "audit_verdict_path": "audit_verdict.json",
+    "review_checklist_path": "review_checklist.md",
+    "verdict": "needs_refinement",
+    "categories": [
+      "missing_algorithm_steps",
+      "unsafe_inference_detected",
+      "benchmark_not_advised"
+    ]
   }
 }

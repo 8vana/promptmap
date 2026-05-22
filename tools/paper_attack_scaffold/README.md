@@ -16,6 +16,7 @@ The tool currently supports:
 - `scaffold`
 - `plan`
 - `forge`
+- `audit`
 
 `scaffold` is the original metadata-first skeleton generator.
 
@@ -25,6 +26,9 @@ emits an implementation plan with evidence separation.
 `forge` is the Phase B coder MVP. It consumes `implementation_plan.json` from a
 staging directory and regenerates a plan-driven `attack_module.py` plus updated
 catalog and review artifacts.
+
+`audit` is the Phase C auditor MVP. It compares the implementation plan against
+the generated module and catalog, then writes a coverage report and verdict.
 
 ## What `scaffold` generates
 
@@ -170,6 +174,32 @@ It writes:
 - `benchmark_notes.md`
 - `review_checklist.md`
 - `manifest.json` updated with `forge_phase_b`
+
+## `audit` usage
+
+Run `audit` after `forge` has produced `attack_module.py` and `attack_catalog.yaml`.
+
+```bash
+python -m tools.paper_attack_scaffold audit \
+  --attack-id radial \
+  --output-dir staging/attacks \
+  --force
+```
+
+Or point directly at a staging directory:
+
+```bash
+python -m tools.paper_attack_scaffold audit \
+  --staging-dir staging/attacks/radial \
+  --force
+```
+
+`audit` currently uses a local heuristic auditor. It writes:
+
+- `coverage_report.md`
+- `audit_verdict.json`
+- `review_checklist.md`
+- `manifest.json` updated with `audit_phase_c`
 
 ## Evidence Model
 

@@ -1,15 +1,25 @@
 # Review Checklist: Radial Attack
 
-- Confirm the paper metadata is correct.
-- Confirm `attack_id`, `module_name`, `class_name`, and `registered_name` match the intended naming convention.
-- Replace the baseline placeholder flow in `attack_module.py` with the paper's real algorithm.
-- Check whether the attack is truly `single_turn` and whether that family maps cleanly to PromptMap runtime expectations.
-- Validate required dependencies:
-  - `scorer_llm`
-- Validate target assumptions:
-  - `api`
-  - `stateless`
-- Confirm whether the attack should remain `prompt_technique_aware: false`.
-- Confirm benchmark suitability before changing `supports_benchmark`.
-- Add tests before promotion.
-- Run catalog and dataset validation after promotion.
+## Audit Summary
+
+- `verdict`: `needs_refinement`
+- `categories`: missing_algorithm_steps, unsafe_inference_detected, benchmark_not_advised
+
+## Remaining Work
+
+- `construct_responses` is `partial`: Response examples are preserved as metadata, but response-set construction is not executable.
+- `collect_instructions` is `missing`: No implementation signal detected for this plan step.
+- `calculate_probabilities` is `missing`: No implementation signal detected for this plan step.
+- `score_instructions` is `missing`: No implementation signal detected for this plan step.
+- `filter_instructions` is `missing`: No implementation signal detected for this plan step.
+- `select_top_instructions` is `missing`: No implementation signal detected for this plan step.
+- `splice_instructions` is `partial`: The draft supports prefix/suffix splicing, but still uses a generic baseline flow.
+- Keep `supports_benchmark: false` until the audit findings are resolved.
+- Add focused tests before promotion.
+- Re-run `audit` after the next forge or manual refinement pass.
+
+## Manual Review Prompts
+
+- Does the runtime code actually execute each plan step, rather than only storing it in metadata?
+- Are paper-specific assumptions exposed as parameters instead of hidden logic?
+- Is the draft still relying on the generic forge baseline?
