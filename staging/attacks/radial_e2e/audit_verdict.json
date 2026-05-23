@@ -1,5 +1,5 @@
 {
-  "attack_id": "radial",
+  "attack_id": "radial_e2e",
   "verdict": "pass_with_review",
   "categories": [
     "benchmark_not_advised"
@@ -16,17 +16,31 @@
     "supports_benchmark": false,
     "source_type": "generated"
   },
+  "repo_support_checks": {
+    "repo_evidence_count": 0,
+    "divergence_count": 0,
+    "repo_derived_hint_keys": [],
+    "default_param_keys": [
+      "malicious_instruction_position",
+      "num_affirmation_responses",
+      "num_real_world_instructions",
+      "num_rejection_responses",
+      "spliced_instructions_count"
+    ],
+    "generation_notes_repo_section_present": true,
+    "silent_repo_dependency_detected": false,
+    "missing_signals": []
+  },
   "step_coverage": {
     "implemented": [
       "score_instructions",
       "filter_instructions",
-      "select_top_instructions",
       "splice_instructions"
     ],
     "partial": [
       "construct_responses",
       "collect_instructions",
-      "calculate_probabilities"
+      "calculate_tendencies"
     ],
     "missing": []
   },

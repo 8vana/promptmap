@@ -25,11 +25,18 @@ from .auditor import AuditConfig, run_audit
 from .forger import ForgeConfig, build_forge_artifacts
 from .ingest import ingest_inputs
 from .planner import PlannerConfig, build_plan, render_plan_markdown
+from .repo_ingest import (
+    ingest_reference_repository,
+    normalize_repo_url,
+    normalize_selected_paths,
+    write_reference_artifacts,
+)
+from .verifier import VerifyConfig, run_verify
 
 
 def main(argv: list[str] | None = None) -> None:
     argv = list(sys.argv[1:] if argv is None else argv)
-    if argv and argv[0] not in {"scaffold", "plan", "forge", "audit", "-h", "--help"}:
+    if argv and argv[0] not in {"scaffold", "plan", "forge", "audit", "verify", "-h", "--help"}:
         argv = ["scaffold", *argv]
     if not argv:
         argv = ["-h"]
@@ -43,6 +50,7 @@ def main(argv: list[str] | None = None) -> None:
     _build_plan_parser(subparsers.add_parser("plan", help="Create an implementation plan from paper material."))
     _build_forge_parser(subparsers.add_parser("forge", help="Generate plan-driven draft artifacts from an implementation plan."))
     _build_audit_parser(subparsers.add_parser("audit", help="Audit plan-to-code coverage for a staging directory."))
+    _build_verify_parser(subparsers.add_parser("verify", help="Run promotion-oriented local verification checks for a staging directory."))
 
     args = parser.parse_args(argv)
     if args.command == "scaffold":
@@ -56,6 +64,9 @@ def main(argv: list[str] | None = None) -> None:
         return
     if args.command == "audit":
         _run_audit(args, parser)
+        return
+    if args.command == "verify":
+        _run_verify(args, parser)
         return
     parser.print_help()
 
@@ -104,6 +115,14 @@ def _build_plan_parser(parser: argparse.ArgumentParser) -> None:
                         help="Local PDF file. Uses Docling to create normalized paper.md / paper.json.")
     parser.add_argument("--notes-path", default=None,
                         help="Optional operator notes file.")
+    parser.add_argument("--reference-repo-url", default=None,
+                        help="Optional supplementary GitHub repository URL.")
+    parser.add_argument("--reference-path", action="append", default=[],
+                        help="Repeatable repo-relative path to a supplementary file.")
+    parser.add_argument("--reference-branch", default=None,
+                        help="Optional branch for GitHub raw fetch mode.")
+    parser.add_argument("--reference-root", default=None,
+                        help="Optional local supplementary repo root for selected reference paths.")
     parser.add_argument("--provider", default=None,
                         help="Optional LLM provider for planner refinement.")
     parser.add_argument("--model", default=None,
@@ -122,6 +141,12 @@ def _build_forge_parser(parser: argparse.ArgumentParser) -> None:
                         help="Optional direct path to a staging directory containing implementation_plan.json.")
     parser.add_argument("--output-dir", default="staging/attacks",
                         help="Staging root when --staging-dir is not supplied. Default: staging/attacks")
+    parser.add_argument("--provider", default=None,
+                        help="Optional LLM provider for LLM-assisted forge.")
+    parser.add_argument("--model", default=None,
+                        help="Optional LLM model for LLM-assisted forge.")
+    parser.add_argument("--forge-backend", default="heuristic", choices=["heuristic", "llm", "auto"],
+                        help="Forge mode. 'auto' uses LLM when configured, else heuristic.")
     parser.add_argument("--force", action="store_true",
                         help="Overwrite existing forge artifacts if present.")
 
@@ -134,6 +159,16 @@ def _build_audit_parser(parser: argparse.ArgumentParser) -> None:
                         help="Staging root when --staging-dir is not supplied. Default: staging/attacks")
     parser.add_argument("--force", action="store_true",
                         help="Overwrite existing audit artifacts if present.")
+
+
+def _build_verify_parser(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--attack-id", default=None, help="Attack id used to resolve the staging directory.")
+    parser.add_argument("--staging-dir", default=None,
+                        help="Optional direct path to a staging directory containing implementation_plan.json, attack_module.py, and attack_catalog.yaml.")
+    parser.add_argument("--output-dir", default="staging/attacks",
+                        help="Staging root when --staging-dir is not supplied. Default: staging/attacks")
+    parser.add_argument("--force", action="store_true",
+                        help="Overwrite existing verification artifacts if present.")
 
 
 def _run_scaffold(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
@@ -227,6 +262,23 @@ def _run_scaffold(args: argparse.Namespace, parser: argparse.ArgumentParser) -> 
 
 def _run_plan(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
     try:
+        reference_config = _normalize_reference_inputs(args)
+    except ValueError as exc:
+        parser.error(str(exc))
+
+    reference_bundle = None
+    if reference_config["reference_backend_requested"]:
+        try:
+            reference_bundle = ingest_reference_repository(
+                reference_repo_url=str(reference_config["reference_repo_url"] or ""),
+                reference_paths=list(reference_config["reference_paths"]),
+                reference_branch=str(reference_config["reference_branch"] or ""),
+                reference_root=str(reference_config["reference_root"] or ""),
+            )
+        except Exception as exc:
+            parser.error(str(exc))
+
+    try:
         ingest = ingest_inputs(
             paper_text_path=args.paper_text_path,
             pdf_path=args.pdf_path,
@@ -251,11 +303,22 @@ def _run_plan(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None
                 "implementation_plan.md",
                 "raw_planner_output.json",
                 "raw_planner_response.txt",
+                "reference_manifest.json",
             ],
             force=args.force,
         )
     except ValueError as exc:
         parser.error(str(exc))
+
+    if reference_bundle is not None:
+        try:
+            ensure_file_overwrite_allowed(
+                staging_dir / "reference_snippets",
+                [snippet.snippet_filename for snippet in reference_bundle.snippets],
+                force=args.force,
+            )
+        except ValueError as exc:
+            parser.error(str(exc))
 
     outcome = build_plan(
         config=PlannerConfig(
@@ -270,6 +333,7 @@ def _run_plan(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None
         ),
         paper_markdown=ingest.markdown,
         notes_text=ingest.notes_text,
+        repo_snippets=reference_bundle.snippets if reference_bundle is not None else [],
     )
     plan = outcome.plan
 
@@ -280,7 +344,22 @@ def _run_plan(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None
     )
     write_text(
         staging_dir / "input_manifest.json",
-        json.dumps(ingest.input_manifest, indent=2, ensure_ascii=False) + "\n",
+        json.dumps(
+            {
+                **ingest.input_manifest,
+                "reference_repo_url": reference_config["reference_repo_url"],
+                "reference_paths": reference_config["reference_paths"],
+                "reference_branch": reference_config["reference_branch"],
+                "reference_root": reference_config["reference_root"],
+                "reference_backend_requested": reference_config["reference_backend_requested"],
+                "reference_manifest_path": "reference_manifest.json" if reference_bundle is not None else "",
+                "reference_snippets_dir": "reference_snippets" if reference_bundle is not None else "",
+                "reference_snippet_count": len(reference_bundle.snippets) if reference_bundle is not None else 0,
+            },
+            indent=2,
+            ensure_ascii=False,
+        )
+        + "\n",
     )
     write_text(
         staging_dir / "implementation_plan.json",
@@ -296,6 +375,8 @@ def _run_plan(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None
             staging_dir / "raw_planner_response.txt",
             outcome.raw_response_text.rstrip() + "\n",
         )
+    if reference_bundle is not None:
+        write_reference_artifacts(staging_dir, reference_bundle)
 
     existing_manifest = _load_existing_manifest(staging_dir / "manifest.json")
     existing_manifest.setdefault("attack_id", plan.attack_id)
@@ -316,6 +397,14 @@ def _run_plan(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None
         "planner_excerpt_chars": len(outcome.planner_excerpt),
         "raw_planner_output_path": "raw_planner_output.json" if outcome.raw_payload is not None else "",
         "raw_planner_response_path": "raw_planner_response.txt" if outcome.raw_payload is not None else "",
+        "reference_repo_url": reference_config["reference_repo_url"],
+        "reference_paths": reference_config["reference_paths"],
+        "reference_branch": reference_config["reference_branch"],
+        "reference_root": reference_config["reference_root"],
+        "reference_backend_requested": reference_config["reference_backend_requested"],
+        "reference_manifest_path": "reference_manifest.json" if reference_bundle is not None else "",
+        "reference_snippets_dir": "reference_snippets" if reference_bundle is not None else "",
+        "reference_snippet_count": len(reference_bundle.snippets) if reference_bundle is not None else 0,
     }
     write_text(
         staging_dir / "manifest.json",
@@ -347,6 +436,9 @@ def _run_forge(args: argparse.Namespace, parser: argparse.ArgumentParser) -> Non
                 "attack_catalog.yaml",
                 "benchmark_notes.md",
                 "review_checklist.md",
+                "generation_notes.md",
+                "raw_forge_output.json",
+                "raw_forge_response.txt",
             ],
             force=args.force,
         )
@@ -358,6 +450,9 @@ def _run_forge(args: argparse.Namespace, parser: argparse.ArgumentParser) -> Non
             ForgeConfig(
                 attack_id=attack_id,
                 staging_dir=staging_dir,
+                provider=args.provider,
+                model=args.model,
+                forge_backend=args.forge_backend,
             )
         )
     except ValueError as exc:
@@ -367,6 +462,16 @@ def _run_forge(args: argparse.Namespace, parser: argparse.ArgumentParser) -> Non
     write_text(staging_dir / "attack_catalog.yaml", outcome.attack_catalog_text)
     write_text(staging_dir / "benchmark_notes.md", outcome.benchmark_notes_text)
     write_text(staging_dir / "review_checklist.md", outcome.review_checklist_text)
+    write_text(staging_dir / "generation_notes.md", outcome.generation_notes_text)
+    if outcome.raw_payload is not None:
+        write_text(
+            staging_dir / "raw_forge_output.json",
+            json.dumps(outcome.raw_payload, indent=2, ensure_ascii=False) + "\n",
+        )
+        write_text(
+            staging_dir / "raw_forge_response.txt",
+            outcome.raw_response_text.rstrip() + "\n",
+        )
 
     existing_manifest = _load_existing_manifest(staging_dir / "manifest.json")
     existing_manifest["attack_id"] = outcome.attack_id
@@ -381,13 +486,20 @@ def _run_forge(args: argparse.Namespace, parser: argparse.ArgumentParser) -> Non
         "catalog_entry": f"promptmap/catalog/attacks/{outcome.attack_id}.yaml",
     }
     existing_manifest["forge_phase_b"] = {
-        "forge_backend_used": "heuristic",
+        "forge_backend_used": outcome.forge_backend_used,
+        "forge_backend_requested": args.forge_backend,
+        "provider": args.provider or "",
+        "model": args.model or "",
+        "execution_skeleton": outcome.execution_skeleton,
         "implementation_plan_json_path": "implementation_plan.json",
         "attack_module_path": "attack_module.py",
         "attack_catalog_path": "attack_catalog.yaml",
         "benchmark_notes_path": "benchmark_notes.md",
         "review_checklist_path": "review_checklist.md",
+        "generation_notes_path": "generation_notes.md",
         "py_compile_ok": outcome.py_compile_ok,
+        "raw_forge_output_path": "raw_forge_output.json" if outcome.raw_payload is not None else "",
+        "raw_forge_response_path": "raw_forge_response.txt" if outcome.raw_payload is not None else "",
     }
     write_text(
         staging_dir / "manifest.json",
@@ -454,6 +566,61 @@ def _run_audit(args: argparse.Namespace, parser: argparse.ArgumentParser) -> Non
     print(staging_dir)
 
 
+def _run_verify(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
+    if not args.staging_dir and not args.attack_id:
+        parser.error("verify requires either --staging-dir or --attack-id")
+
+    if args.staging_dir:
+        staging_dir = Path(args.staging_dir)
+        attack_id = normalize_attack_id(args.attack_id or staging_dir.name)
+    else:
+        attack_id = normalize_attack_id(args.attack_id)
+        staging_dir = Path(args.output_dir) / attack_id
+
+    try:
+        ensure_file_overwrite_allowed(
+            staging_dir,
+            [
+                "verification_report.md",
+                "verification_report.json",
+            ],
+            force=args.force,
+        )
+    except ValueError as exc:
+        parser.error(str(exc))
+
+    try:
+        outcome = run_verify(
+            VerifyConfig(
+                attack_id=attack_id,
+                staging_dir=staging_dir,
+            )
+        )
+    except ValueError as exc:
+        parser.error(str(exc))
+
+    write_text(staging_dir / "verification_report.md", outcome.verification_report_text)
+    write_text(
+        staging_dir / "verification_report.json",
+        json.dumps(outcome.verification_report, indent=2, ensure_ascii=False) + "\n",
+    )
+
+    existing_manifest = _load_existing_manifest(staging_dir / "manifest.json")
+    existing_manifest.setdefault("attack_id", attack_id)
+    existing_manifest.setdefault("staging_dir", str(staging_dir))
+    existing_manifest["verification_phase_e"] = {
+        "verification_report_md_path": "verification_report.md",
+        "verification_report_json_path": "verification_report.json",
+        "verdict": outcome.verification_report.get("verdict", ""),
+        "categories": outcome.verification_report.get("categories", []),
+    }
+    write_text(
+        staging_dir / "manifest.json",
+        json.dumps(existing_manifest, indent=2, ensure_ascii=False) + "\n",
+    )
+    print(staging_dir)
+
+
 def _fallback_attack_id(
     paper_title: str | None,
     paper_text_path: str | None,
@@ -476,6 +643,48 @@ def _load_existing_manifest(path: Path) -> dict:
         return data if isinstance(data, dict) else {}
     except Exception:
         return {}
+
+
+def _normalize_reference_inputs(args: argparse.Namespace) -> dict[str, object]:
+    reference_repo_url = (args.reference_repo_url or "").strip()
+    reference_branch = (args.reference_branch or "").strip()
+    reference_root = (args.reference_root or "").strip()
+    reference_paths = normalize_selected_paths(args.reference_path or [])
+
+    if reference_repo_url and reference_root:
+        raise ValueError(
+            "Use either --reference-repo-url or --reference-root, not both."
+        )
+    if reference_branch and not reference_repo_url:
+        raise ValueError("--reference-branch requires --reference-repo-url.")
+    if reference_paths and not (reference_repo_url or reference_root):
+        raise ValueError(
+            "--reference-path requires either --reference-repo-url or --reference-root."
+        )
+
+    normalized_repo_url = normalize_repo_url(reference_repo_url) if reference_repo_url else ""
+    normalized_root = ""
+    if reference_root:
+        root_path = Path(reference_root).expanduser().resolve()
+        if not root_path.exists():
+            raise ValueError(f"Reference root does not exist: {root_path}")
+        if not root_path.is_dir():
+            raise ValueError(f"Reference root must be a directory: {root_path}")
+        normalized_root = str(root_path)
+
+    backend_requested = ""
+    if normalized_repo_url:
+        backend_requested = "github_raw"
+    elif normalized_root:
+        backend_requested = "local_files"
+
+    return {
+        "reference_repo_url": normalized_repo_url,
+        "reference_paths": reference_paths,
+        "reference_branch": reference_branch,
+        "reference_root": normalized_root,
+        "reference_backend_requested": backend_requested,
+    }
 
 
 if __name__ == "__main__":

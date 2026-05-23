@@ -1,0 +1,123 @@
+{
+  "summary": "RADIAL is an automated jailbreak method that analyzes the inherent response tendency of LLMs by calculating generation probabilities for affirmative vs. rejection responses to real-world instructions. It identifies instructions that inherently induce affirmative responses, then strategically splices these around malicious instructions to bypass safety mechanisms. The method requires only 40 manually-crafted responses (20 affirmative, 20 rejection) and produces semantically coherent attack prompts.",
+  "family": "prompt_injection",
+  "target_modes": [
+    "text_generation"
+  ],
+  "required_capabilities": [
+    "token_probability_calculation",
+    "instruction_dataset_access",
+    "multi_instruction_prompt_construction"
+  ],
+  "supports_benchmark_recommendation": true,
+  "default_params": {
+    "num_affirmation_responses": 20,
+    "num_rejection_responses": 20,
+    "num_real_world_instructions": 30000,
+    "spliced_instructions_count": [
+      2,
+      4
+    ],
+    "malicious_instruction_position": "end"
+  },
+  "algorithm_steps": [
+    {
+      "step_id": 1,
+      "title": "Construct Response Templates",
+      "description": "Create 20 general affirmation responses (e.g., 'Sure, here's the information.') and 20 general rejection responses (e.g., 'Sorry, I am unable to provide the information') that are not specific to any particular instruction.",
+      "evidence_refs": [
+        "section 3.2",
+        "App. A reference"
+      ],
+      "status": "clear",
+      "notes": "Paper references App. A for full list of responses but this is not provided in excerpt"
+    },
+    {
+      "step_id": 2,
+      "title": "Collect Real-World Instructions",
+      "description": "Gather 30,000 real-world English instructions from the alpaca official repository for analysis.",
+      "evidence_refs": [
+        "section 3.2",
+        "footnote 1"
+      ],
+      "status": "clear",
+      "notes": "Specific source: https://github.com/tloen/alpaca-lora"
+    },
+    {
+      "step_id": 3,
+      "title": "Calculate Response Probabilities",
+      "description": "For each real-world instruction X, calculate the probability of generating affirmation response y_a and rejection response y_r using the formulas provided in the paper.",
+      "evidence_refs": [
+        "section 3.2",
+        "equations in paper"
+      ],
+      "status": "ambiguous",
+      "notes": "Mathematical formulas are referenced but not fully decoded in the excerpt"
+    },
+    {
+      "step_id": 4,
+      "title": "Compute Inherent Response Tendency Score",
+      "description": "Calculate a score for each instruction reflecting the LLM's inherent tendency to affirm, with higher scores indicating stronger affirmation tendency.",
+      "evidence_refs": [
+        "section 3.2"
+      ],
+      "status": "ambiguous",
+      "notes": "Final score calculation formula is referenced but not decoded"
+    },
+    {
+      "step_id": 5,
+      "title": "Rank Instructions by Affirmation Tendency",
+      "description": "Create a ranking of real-world instructions based on their calculated scores, with highest-scoring (most affirmation-inducing) instructions at the top.",
+      "evidence_refs": [
+        "section 3.2",
+        "Fig. 2"
+      ],
+      "status": "clear",
+      "notes": "Process is clear from description and figure"
+    },
+    {
+      "step_id": 6,
+      "title": "Filter Instruction Types",
+      "description": "Remove text manipulation instructions (translation, rewriting, etc.) that would cause the LLM to manipulate the malicious instruction rather than execute it.",
+      "evidence_refs": [
+        "section 3.3"
+      ],
+      "status": "clear",
+      "notes": "Specific examples given: 'Please translate the following sentence' or 'Please change the following text'"
+    },
+    {
+      "step_id": 7,
+      "title": "Construct Attack Prompt",
+      "description": "Select top-ranked real-world instructions and strategically splice them around the malicious instruction, using 2 or 4 instructions total with the malicious instruction positioned at the end.",
+      "evidence_refs": [
+        "section 3.3"
+      ],
+      "status": "clear",
+      "notes": "Empirically determined that end position and 2-4 instruction counts work best"
+    }
+  ],
+  "prompt_fragments": [
+    {
+      "name": "affirmation_response_template",
+      "text": "Sure, here's the information.",
+      "evidence_refs": [
+        "section 3.2"
+      ]
+    },
+    {
+      "name": "rejection_response_template",
+      "text": "Sorry, I am unable to provide the information",
+      "evidence_refs": [
+        "section 3.2"
+      ]
+    }
+  ],
+  "ambiguities": [
+    "Complete list of 40 manual responses referenced in App. A not provided",
+    "Mathematical formulas for probability calculations not fully decoded in excerpt",
+    "Specific selection criteria for top-ranked instructions not detailed",
+    "Exact splicing format and template structure not specified",
+    "Cross-language attack methodology mentioned but not detailed"
+  ],
+  "divergences": []
+}

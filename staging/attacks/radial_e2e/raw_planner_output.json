@@ -1,0 +1,113 @@
+{
+  "summary": "RADIAL is an automatic jailbreak attack method that bypasses LLM safety mechanisms by analyzing inherent response tendencies and strategically placing real-world instructions around malicious content to amplify affirmation response generation.",
+  "family": "unknown",
+  "target_modes": [
+    "completion"
+  ],
+  "required_capabilities": [
+    "probability_calculation",
+    "instruction_ranking",
+    "prompt_construction"
+  ],
+  "supports_benchmark_recommendation": true,
+  "default_params": {
+    "num_affirmation_responses": 20,
+    "num_rejection_responses": 20,
+    "num_real_world_instructions": 30000,
+    "spliced_instructions_count": [
+      2,
+      4
+    ],
+    "malicious_instruction_position": "end"
+  },
+  "algorithm_steps": [
+    {
+      "step_id": "construct_responses",
+      "title": "Construct Affirmation and Rejection Responses",
+      "description": "Create 20 general affirmation responses and 20 general rejection responses that are not specific to any particular instruction",
+      "evidence_refs": [
+        "Section 3.2",
+        "Appendix A reference"
+      ],
+      "status": "well_defined",
+      "notes": "Example given: affirmation 'Sure, here's the information.' and rejection 'Sorry, I am unable to provide the information'"
+    },
+    {
+      "step_id": "collect_instructions",
+      "title": "Collect Real-World Instructions",
+      "description": "Gather 30,000 real-world English instructions from alpaca official repository",
+      "evidence_refs": [
+        "Section 3.2",
+        "footnote 1"
+      ],
+      "status": "well_defined",
+      "notes": "Source: https://github.com/tloen/alpaca-lora"
+    },
+    {
+      "step_id": "calculate_tendencies",
+      "title": "Calculate Response Tendencies",
+      "description": "For each real-world instruction, calculate affirmation tendency (Ta) and rejection tendency (Tr) using generation probabilities",
+      "evidence_refs": [
+        "Section 3.2",
+        "Equations 1-6"
+      ],
+      "status": "well_defined",
+      "notes": "Uses mathematical formulas involving conditional probabilities and averaging across constructed responses"
+    },
+    {
+      "step_id": "score_instructions",
+      "title": "Score and Rank Instructions",
+      "description": "Calculate overall score for each instruction as Score = Ta - Tr and rank instructions by this score",
+      "evidence_refs": [
+        "Section 3.2",
+        "Equation 7"
+      ],
+      "status": "well_defined",
+      "notes": "Higher scores indicate higher inherent tendency to affirm"
+    },
+    {
+      "step_id": "filter_instructions",
+      "title": "Filter Out Text Manipulation Instructions",
+      "description": "Remove instructions that involve text manipulation (translation, rewriting) as they interfere with malicious instruction processing",
+      "evidence_refs": [
+        "Section 3.3"
+      ],
+      "status": "well_defined",
+      "notes": "Examples given: 'Please translate the following sentence' or 'Please change the following text'"
+    },
+    {
+      "step_id": "splice_instructions",
+      "title": "Splice Instructions Around Malicious Content",
+      "description": "Select top-ranked real-world instructions and strategically place them around malicious instruction, with malicious instruction at the end",
+      "evidence_refs": [
+        "Section 3.3"
+      ],
+      "status": "well_defined",
+      "notes": "Use 2 or 4 spliced instructions, place malicious instruction at end for optimal performance"
+    }
+  ],
+  "prompt_fragments": [
+    {
+      "name": "affirmation_response_example",
+      "text": "Sure, here's the information.",
+      "evidence_refs": [
+        "Section 3.2"
+      ]
+    },
+    {
+      "name": "rejection_response_example",
+      "text": "Sorry, I am unable to provide the information",
+      "evidence_refs": [
+        "Section 3.2"
+      ]
+    }
+  ],
+  "ambiguities": [
+    "Exact construction methodology for the 20 affirmation and 20 rejection responses not fully specified beyond examples",
+    "Specific filtering criteria for text manipulation instructions not completely detailed",
+    "Exact selection methodology for choosing which top-ranked instructions to use in splicing",
+    "Complete prompt template structure not provided in paper excerpt",
+    "Cross-language adaptation methodology for Chinese malicious instructions mentioned but not detailed in excerpt"
+  ],
+  "divergences": []
+}

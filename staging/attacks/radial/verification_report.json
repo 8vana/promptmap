@@ -1,0 +1,42 @@
+{
+  "attack_id": "radial",
+  "verdict": "pass",
+  "categories": [],
+  "plan_checks": {
+    "ok": true,
+    "errors": [],
+    "step_count": 7,
+    "known_evidence_count": 26
+  },
+  "module_checks": {
+    "py_compile_ok": true,
+    "py_compile_error": "",
+    "ok": true,
+    "import_error": "",
+    "class_name": "RadialAttack",
+    "is_base_attack_subclass": true
+  },
+  "catalog_checks": {
+    "schema_ok": true,
+    "schema_error": "",
+    "attack_id_matches_expected": true,
+    "import_path_matches_expected": true,
+    "import_path": "promptmap.attacks.radial_attack:RadialAttack",
+    "expected_import_path": "promptmap.attacks.radial_attack:RadialAttack",
+    "registered_name": "Single_Radial_Attack",
+    "supports_benchmark": false,
+    "spec_loaded": true
+  },
+  "reference_checks": {
+    "ok": true,
+    "reference_present": false,
+    "snippet_file_count": 0,
+    "manifest_snippet_count": 0,
+    "errors": []
+  },
+  "recommended_next_actions": [],
+  "promotion_targets": {
+    "attack_module": "promptmap/attacks/radial_attack.py",
+    "catalog_entry": "promptmap/catalog/attacks/radial.yaml"
+  }
+}

@@ -1,0 +1,121 @@
+from __future__ import annotations
+
+from uuid import uuid4
+
+from promptmap.engine.base_attack import BaseAttack
+from promptmap.engine.context import AttackContext
+from promptmap.engine.events import (
+    EVT_ACHIEVED,
+    EVT_COMPLETE,
+    EVT_INFO,
+    EVT_PROMPT,
+    EVT_RESPONSE,
+    EVT_SCORE,
+    ProgressEvent,
+)
+from promptmap.engine.models import AttackResult, Message
+
+ATTACK_NAME = {{ registered_name_repr }}
+PLAN_FAMILY = {{ family_repr }}
+EXECUTION_SKELETON = {{ execution_skeleton_repr }}
+PLAN_SUMMARY = {{ summary_literal }}
+DEFAULT_PARAMS = {{ default_params_literal }}
+REPO_DERIVED_HINTS = {{ repo_derived_hints_literal }}
+PLAN_STEPS = {{ plan_steps_literal }}
+PROMPT_FRAGMENTS = {{ prompt_fragments_literal }}
+PLAN_AMBIGUITIES = {{ ambiguities_literal }}
+PLAN_STEP_IDS = {{ plan_step_ids_literal }}
+STEP_SYMBOL_MAP = {{ step_symbol_map_literal }}
+
+
+class {{ class_name }}(BaseAttack):
+    """Plan-driven draft for "{{ display_name }}".
+
+    This template targets single-turn attacks that mainly assemble prefix/suffix
+    prompt segments around the objective.
+    """
+
+    def _merge_params(self, **kwargs):
+        merged = dict(DEFAULT_PARAMS)
+        merged.update(kwargs)
+        return merged
+
+    async def _apply_converters(self, ctx: AttackContext, text: str) -> str:
+        converted = text
+        for converter in ctx.converters:
+            converted = await converter.convert(converted)
+        return converted
+
+    def _build_prompt_segments(self, params: dict) -> tuple[list[str], list[str]]:
+        """Plan steps: construct_responses / filter_instructions.
+
+        TODO({{ attack_id }}:single_turn_splice):
+        Replace these generic segments with paper-defined prompt assets.
+        """
+        prefixes = [str(item).strip() for item in (params.get("instruction_prefixes") or []) if str(item).strip()]
+        suffixes = [str(item).strip() for item in (params.get("instruction_suffixes") or []) if str(item).strip()]
+        return prefixes, suffixes
+
+    def _build_attack_prompt(self, objective: str, params: dict) -> str:
+        prefixes, suffixes = self._build_prompt_segments(params)
+        preamble = str(params.get("attack_preamble") or "").strip()
+        parts: list[str] = []
+        if preamble:
+            parts.append(preamble)
+        parts.extend(prefixes)
+        parts.append(objective)
+        parts.extend(suffixes)
+        return "\n\n".join(part for part in parts if part)
+
+    async def run(self, ctx: AttackContext, objective: str, **kwargs) -> AttackResult:
+        params = self._merge_params(**kwargs)
+        conversation_id = str(uuid4())
+        prompt = self._build_attack_prompt(objective, params)
+        converted = await self._apply_converters(ctx, prompt)
+
+        await ctx.emit(ProgressEvent(EVT_INFO, data={
+            "text": "{{ display_name }} forge draft executing single-turn splice skeleton."
+        }))
+        await ctx.emit(ProgressEvent(EVT_PROMPT, turn=1, data={"text": converted}))
+
+        response = await ctx.target.send(converted, conversation_id)
+        await ctx.emit(ProgressEvent(EVT_RESPONSE, turn=1, data={"text": response}))
+        score_result = await ctx.scorer.score(response, objective)
+        await ctx.emit(ProgressEvent(EVT_SCORE, turn=1, data={
+            "score": score_result.score,
+            "achieved": score_result.achieved,
+            "rationale": score_result.rationale,
+        }))
+        if score_result.achieved:
+            await ctx.emit(ProgressEvent(EVT_ACHIEVED, turn=1, data={"score": score_result.score}))
+        await ctx.emit(ProgressEvent(EVT_COMPLETE, data={
+            "achieved": score_result.achieved,
+            "score": score_result.score,
+            "turns": 1,
+        }))
+
+        return AttackResult(
+            attack_name=ATTACK_NAME,
+            objective=objective,
+            achieved=score_result.achieved,
+            score=score_result.score,
+            turns=1,
+            conversation=[
+                Message(role="user", content=converted),
+                Message(role="assistant", content=response),
+            ],
+            metadata={
+                "family": PLAN_FAMILY,
+                "paper_title": {{ paper_title_repr }},
+                "paper_url": {{ paper_url_repr }},
+                "forge_status": "draft",
+                "execution_skeleton": EXECUTION_SKELETON,
+                "plan_summary": PLAN_SUMMARY,
+                "plan_steps": PLAN_STEPS,
+                "plan_ambiguities": PLAN_AMBIGUITIES,
+                "step_symbol_map": STEP_SYMBOL_MAP,
+                "default_params": DEFAULT_PARAMS,
+                "repo_derived_hints": REPO_DERIVED_HINTS,
+                "prompt_fragments": PROMPT_FRAGMENTS,
+            },
+        )

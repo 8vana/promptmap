@@ -14,6 +14,7 @@ from .models import (
     ImplementationPlan,
     PromptFragment,
 )
+from .repo_ingest import ReferenceSnippet
 
 _DEFAULT_EXCERPT_CHARS = 18000
 
@@ -44,6 +45,7 @@ def build_plan(
     config: PlannerConfig,
     paper_markdown: str,
     notes_text: str,
+    repo_snippets: list[ReferenceSnippet] | None = None,
 ) -> PlannerOutcome:
     paper_title = config.paper_title or _infer_paper_title(paper_markdown)
     attack_id = normalize_attack_id(config.attack_id or _infer_attack_id(paper_title))
@@ -56,6 +58,7 @@ def build_plan(
         paper_url=config.paper_url or "",
         paper_markdown=paper_markdown,
         notes_text=notes_text,
+        repo_snippets=repo_snippets or [],
         family_override=config.family,
     )
 
@@ -73,6 +76,7 @@ def build_plan(
                 paper_url=config.paper_url or "",
                 family_hint=config.family or "",
                 paper_excerpt=excerpt,
+                repo_excerpt=_repo_excerpt(repo_snippets or []),
                 notes_text=notes_text,
             )
             plan = _merge_llm_payload(base_plan, llm_payload)
@@ -216,9 +220,11 @@ def _build_heuristic_plan(
     paper_url: str,
     paper_markdown: str,
     notes_text: str,
+    repo_snippets: list[ReferenceSnippet],
     family_override: str | None,
 ) -> ImplementationPlan:
     paper_evidence = _extract_paper_evidence(paper_markdown)
+    repo_evidence = _extract_repo_evidence(repo_snippets)
     operator_notes = _extract_operator_notes(notes_text)
     family = family_override or _infer_family(paper_markdown, paper_title)
     target_modes = _infer_target_modes(family)
@@ -233,8 +239,13 @@ def _build_heuristic_plan(
         "Planner MVP generated this draft heuristically; validate the attack flow against the paper.",
         "Default parameters are provisional unless the paper states them explicitly.",
     ]
+    if repo_evidence:
+        ambiguities.append(
+            "Reference repo snippets were ingested as supplementary evidence only; prefer paper evidence when they disagree."
+        )
     if not paper_url:
         ambiguities.append("Paper URL was not supplied and could not be verified.")
+    divergences = _infer_repo_divergences(repo_snippets, paper_markdown)
     summary = (
         "Heuristic planner summary based on normalized paper text. "
         "This draft is intended for human review before any code generation or promotion."
@@ -254,9 +265,9 @@ def _build_heuristic_plan(
         prompt_fragments=prompt_fragments,
         ambiguities=ambiguities,
         paper_evidence=paper_evidence,
-        repo_evidence=[],
+        repo_evidence=repo_evidence,
         operator_notes=operator_notes,
-        divergences=[],
+        divergences=divergences,
     )
 
 
@@ -608,6 +619,18 @@ def _planner_excerpt(markdown: str, notes_text: str) -> str:
     return "".join(chunks)
 
 
+def _repo_excerpt(repo_snippets: list[ReferenceSnippet]) -> str:
+    if not repo_snippets:
+        return "None"
+    blocks: list[str] = []
+    for snippet in repo_snippets[:4]:
+        excerpt = snippet.text[:1800].strip()
+        if not excerpt:
+            continue
+        blocks.append(f"## {snippet.path}\n{excerpt}")
+    return "\n\n".join(blocks) if blocks else "None"
+
+
 def _run_llm_planner(
     *,
     llm_config: LLMConfig,
@@ -617,6 +640,7 @@ def _run_llm_planner(
     paper_url: str,
     family_hint: str,
     paper_excerpt: str,
+    repo_excerpt: str,
     notes_text: str,
 ) -> tuple[str, dict[str, Any]]:
     prompts_dir = Path(__file__).resolve().parent / "prompts"
@@ -629,6 +653,7 @@ def _run_llm_planner(
         paper_url=paper_url,
         family_hint=family_hint or "unknown",
         paper_excerpt=paper_excerpt,
+        repo_excerpt=repo_excerpt,
         notes_text=notes_text or "None",
     )
     raw = run_prompt_sync(llm_config, system_prompt=system_prompt, user_prompt=user_prompt)
@@ -665,16 +690,17 @@ def _merge_llm_payload(base_plan: ImplementationPlan, payload: dict[str, Any]) -
     evidence_refs = [record.evidence_id for record in base_plan.paper_evidence[:2]]
     if base_plan.operator_notes:
         evidence_refs.append(base_plan.operator_notes[0].evidence_id)
+    all_evidence = [*base_plan.paper_evidence, *base_plan.repo_evidence]
     steps = _parse_steps(
         payload.get("algorithm_steps"),
         evidence_refs,
-        paper_evidence=base_plan.paper_evidence,
+        all_evidence=all_evidence,
         ambiguities=ambiguities,
     ) or base_plan.algorithm_steps
     fragments = _parse_fragments(
         payload.get("prompt_fragments"),
         evidence_refs,
-        paper_evidence=base_plan.paper_evidence,
+        all_evidence=all_evidence,
         ambiguities=ambiguities,
     ) or base_plan.prompt_fragments
 
@@ -702,7 +728,7 @@ def _parse_steps(
     raw: Any,
     default_evidence_refs: list[str],
     *,
-    paper_evidence: list[EvidenceRecord],
+    all_evidence: list[EvidenceRecord],
     ambiguities: list[str],
 ) -> list[AlgorithmStep]:
     if not isinstance(raw, list):
@@ -718,7 +744,7 @@ def _parse_steps(
         refs = _normalize_evidence_refs(
             _clean_string_list(item.get("evidence_refs")),
             default_evidence_refs=default_evidence_refs,
-            paper_evidence=paper_evidence,
+            all_evidence=all_evidence,
             ambiguities=ambiguities,
         )
         steps.append(
@@ -738,7 +764,7 @@ def _parse_fragments(
     raw: Any,
     default_evidence_refs: list[str],
     *,
-    paper_evidence: list[EvidenceRecord],
+    all_evidence: list[EvidenceRecord],
     ambiguities: list[str],
 ) -> list[PromptFragment]:
     if not isinstance(raw, list):
@@ -757,7 +783,7 @@ def _parse_fragments(
                 evidence_refs=_normalize_evidence_refs(
                     _clean_string_list(item.get("evidence_refs")),
                     default_evidence_refs=list(default_evidence_refs[:1]),
-                    paper_evidence=paper_evidence,
+                    all_evidence=all_evidence,
                     ambiguities=ambiguities,
                 ),
             )
@@ -879,17 +905,17 @@ def _normalize_evidence_refs(
     raw_refs: list[str],
     *,
     default_evidence_refs: list[str],
-    paper_evidence: list[EvidenceRecord],
+    all_evidence: list[EvidenceRecord],
     ambiguities: list[str],
 ) -> list[str]:
     if not raw_refs:
         return list(default_evidence_refs)
     resolved: list[str] = []
     for ref in raw_refs:
-        if any(record.evidence_id == ref for record in paper_evidence):
+        if any(record.evidence_id == ref for record in all_evidence):
             resolved.append(ref)
             continue
-        match = _resolve_evidence_ref(ref, paper_evidence)
+        match = _resolve_evidence_ref(ref, all_evidence)
         if match:
             resolved.append(match)
         else:
@@ -902,6 +928,13 @@ def _normalize_evidence_refs(
 
 def _resolve_evidence_ref(ref: str, records: list[EvidenceRecord]) -> str | None:
     lowered = ref.strip().lower()
+    if lowered.startswith("repo:"):
+        target = next(
+            (record for record in records if record.evidence_id.lower() == lowered),
+            None,
+        )
+        if target:
+            return target.evidence_id
     section_number = ""
     if lowered.startswith("section "):
         section_number = lowered.replace("section ", "", 1).strip()
@@ -989,7 +1022,85 @@ def _resolve_evidence_ref(ref: str, records: list[EvidenceRecord]) -> str | None
         ),
         None,
     )
-    return target.evidence_id if target else None
+    if target:
+        return target.evidence_id
+    repo_target = next(
+        (
+            record
+            for record in records
+            if record.path and (lowered in record.path.lower() or lowered == Path(record.path).name.lower())
+        ),
+        None,
+    )
+    return repo_target.evidence_id if repo_target else None
+
+
+def _extract_repo_evidence(repo_snippets: list[ReferenceSnippet]) -> list[EvidenceRecord]:
+    records: list[EvidenceRecord] = []
+    for snippet in repo_snippets:
+        slug = re.sub(r"[^a-z0-9]+", "_", snippet.path.lower()).strip("_")
+        end_line = min(snippet.line_count, 40) if snippet.line_count else 1
+        excerpt_lines = snippet.text.splitlines()[: min(snippet.line_count, 12)]
+        excerpt = "\n".join(excerpt_lines)[:320]
+        records.append(
+            EvidenceRecord(
+                evidence_id=f"repo:{slug}:1-{end_line}",
+                source_kind="reference_repo",
+                quote_excerpt=excerpt,
+                interpretation="Selected supplementary repo snippet ingested during planning.",
+                confidence="medium",
+                repo_url=snippet.repo_url,
+                path=snippet.path,
+                line_start=1,
+                line_end=end_line,
+                paper_aligned="unknown",
+            )
+        )
+    return records
+
+
+def _infer_repo_divergences(
+    repo_snippets: list[ReferenceSnippet],
+    paper_markdown: str,
+) -> list[DivergenceRecord]:
+    if not repo_snippets:
+        return []
+    paper_lower = paper_markdown.lower()
+    candidate_keys = {
+        "retry_count",
+        "max_iterations",
+        "top_k",
+        "selected_instruction_count",
+        "batch_size",
+        "temperature",
+        "num_candidates",
+    }
+    divergences: list[DivergenceRecord] = []
+    seen_topics: set[str] = set()
+    for snippet in repo_snippets:
+        for key in candidate_keys:
+            match = re.search(
+                rf"\b{re.escape(key)}\b\s*[:=]\s*([\"']?[-a-zA-Z0-9_.]+[\"']?)",
+                snippet.text,
+            )
+            if not match or key in seen_topics:
+                continue
+            seen_topics.add(key)
+            if key in paper_lower:
+                continue
+            divergences.append(
+                DivergenceRecord(
+                    divergence_id=f"D{len(divergences) + 1}",
+                    topic=key,
+                    paper_position="not specified",
+                    repo_position=f"{key} = {match.group(1)} in {snippet.path}",
+                    planner_decision=(
+                        "Treat as a repo-derived hint only and expose it as a configurable parameter if used."
+                    ),
+                    severity="low",
+                )
+            )
+    return divergences
 
 
 def _parse_markdown_sections(markdown: str) -> list[dict[str, str]]:

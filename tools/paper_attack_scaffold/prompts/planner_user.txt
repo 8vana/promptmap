@@ -10,5 +10,8 @@ Operator notes:
 Paper excerpt:
 {paper_excerpt}
 
+Supplementary repo excerpts:
+{repo_excerpt}
+
 Produce a conservative implementation plan for PromptMap.
 If you are unsure, keep the ambiguity explicit.

@@ -1,4 +1,4 @@
-# Review Checklist: Radial Attack
+# Review Checklist: Radial LLM E2E Text Attack
 
 - Confirm the paper metadata is correct.
 - Confirm `attack_id`, `module_name`, `class_name`, and `registered_name` match the intended naming convention.

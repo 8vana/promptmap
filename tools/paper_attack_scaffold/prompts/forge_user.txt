@@ -1,0 +1,23 @@
+Attack id: {attack_id}
+Display name: {display_name}
+Paper title: {paper_title}
+Paper URL: {paper_url}
+Execution skeleton: {execution_skeleton}
+Expected class name: {class_name}
+Expected registered name: {registered_name}
+
+Implementation plan JSON:
+{implementation_plan_json}
+
+Heuristic attack module draft:
+```python
+{heuristic_attack_module_text}
+```
+
+Heuristic generation notes:
+```markdown
+{heuristic_generation_notes_text}
+```
+
+Improve the draft conservatively.
+Preserve the same public contract and keep uncertainties explicit.
