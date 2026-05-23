@@ -1,0 +1,18 @@
+{
+  "paper_url": "https://arxiv.org/abs/2312.04127",
+  "paper_text_path": "",
+  "pdf_path": "docs/papers/radial.pdf",
+  "notes_path": "",
+  "docling_backend": "python_api",
+  "ocr_enabled": false,
+  "ingest_backend": "docling",
+  "docling_source": "docs/papers/radial.pdf",
+  "reference_repo_url": "",
+  "reference_paths": [],
+  "reference_branch": "",
+  "reference_root": "",
+  "reference_backend_requested": "",
+  "reference_manifest_path": "",
+  "reference_snippets_dir": "",
+  "reference_snippet_count": 0
+}

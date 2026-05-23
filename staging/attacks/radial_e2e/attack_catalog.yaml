@@ -1,0 +1,22 @@
+attack_id: radial_e2e
+import_path: promptmap.attacks.radial_e2e_attack:RadialE2eAttack
+registered_name: Single_Radial_E2e_Attack
+display_name: Radial E2E Attack
+family: single_turn
+description: RADIAL is an automatic jailbreak attack method that bypasses LLM safety mechanisms
+  by analyzing inherent response tendencies and strategically placing real-world instructions
+  around malicious content to amplify affirmation response generation.
+source_type: generated
+paper_title: 'Analyzing the Inherent Response Tendency of LLMs: Real-World Instructions-Driven
+  Jailbreak'
+paper_url: https://arxiv.org/abs/2312.04127
+paper_year: null
+prompt_technique_aware: false
+supports_benchmark: false
+target_modes: [api, stateless]
+required_capabilities: [scorer_llm]
+tags: [generated, research, paper_forge, single_turn, jailbreak]
+default_params: {num_affirmation_responses: 20, num_rejection_responses: 20, num_real_world_instructions: 30000,
+  spliced_instructions_count: [2, 4], malicious_instruction_position: end}
+benchmark_defaults: {}
+compatible_atlas_techniques: []

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 from dataclasses import dataclass
 import json
 from pathlib import Path
@@ -26,6 +27,7 @@ def run_audit(config: AuditConfig) -> AuditOutcome:
     plan_path = config.staging_dir / "implementation_plan.json"
     module_path = config.staging_dir / "attack_module.py"
     catalog_path = config.staging_dir / "attack_catalog.yaml"
+    generation_notes_path = config.staging_dir / "generation_notes.md"
 
     if not plan_path.exists():
         raise ValueError(f"Missing implementation plan: {plan_path}")
@@ -37,13 +39,25 @@ def run_audit(config: AuditConfig) -> AuditOutcome:
     plan = json.loads(plan_path.read_text(encoding="utf-8"))
     module_source = module_path.read_text(encoding="utf-8")
     catalog = yaml.safe_load(catalog_path.read_text(encoding="utf-8")) or {}
+    generation_notes_text = _read_optional_text(generation_notes_path)
 
     module_runtime_source = _runtime_source(module_source)
     py_compile_ok, py_compile_error = _check_py_compile(module_path)
+    module_metadata = _extract_module_metadata(module_source)
+    method_sources = _extract_method_sources(module_source)
+    run_source = method_sources.get("run", "")
+
     generic_baseline_detected = "forge draft executing plan-driven baseline flow" in module_source
 
     step_results = [
-        _audit_step(step, module_runtime_source, generic_baseline_detected)
+        _audit_step(
+            step,
+            runtime_source=module_runtime_source,
+            generic_baseline_detected=generic_baseline_detected,
+            step_symbol_map=module_metadata.get("STEP_SYMBOL_MAP", {}),
+            method_sources=method_sources,
+            run_source=run_source,
+        )
         for step in plan.get("algorithm_steps", [])
         if isinstance(step, dict)
     ]
@@ -52,7 +66,6 @@ def run_audit(config: AuditConfig) -> AuditOutcome:
     recommended_actions: list[str] = []
 
     missing_steps = [step for step in step_results if step["status"] == "missing"]
-    partial_steps = [step for step in step_results if step["status"] == "partial"]
 
     if missing_steps:
         categories.append("missing_algorithm_steps")
@@ -64,13 +77,23 @@ def run_audit(config: AuditConfig) -> AuditOutcome:
         recommended_actions.append(
             "Replace the generic forge baseline with paper-specific prompt construction and control flow."
         )
+
+    catalog_checks = _audit_catalog(plan, catalog)
+    repo_support_checks = _audit_repo_support(
+        plan=plan,
+        module_metadata=module_metadata,
+        generation_notes_text=generation_notes_text,
+    )
     if not _catalog_supports_benchmark(catalog):
         categories.append("benchmark_not_advised")
         recommended_actions.append(
             "Keep supports_benchmark disabled until the implementation is paper-faithful and tested."
         )
-
-    catalog_checks = _audit_catalog(plan, catalog)
+    if repo_support_checks["silent_repo_dependency_detected"]:
+        categories.append("silent_repo_dependency_detected")
+        recommended_actions.append(
+            "Surface repo-derived behavior explicitly in generation notes and module metadata before promotion."
+        )
     if catalog_checks["mismatches"]:
         recommended_actions.append(
             "Resolve catalog mismatches so runtime metadata stays aligned with the implementation plan."
@@ -92,8 +115,11 @@ def run_audit(config: AuditConfig) -> AuditOutcome:
             "py_compile_ok": py_compile_ok,
             "py_compile_error": py_compile_error,
             "generic_baseline_detected": generic_baseline_detected,
+            "execution_skeleton": module_metadata.get("EXECUTION_SKELETON", ""),
+            "generation_notes_present": bool(generation_notes_text.strip()),
         },
         "catalog_checks": catalog_checks,
+        "repo_support_checks": repo_support_checks,
         "step_coverage": {
             "implemented": [step["step_id"] for step in step_results if step["status"] == "implemented"],
             "partial": [step["step_id"] for step in step_results if step["status"] == "partial"],
@@ -121,6 +147,12 @@ def run_audit(config: AuditConfig) -> AuditOutcome:
     )
 
 
+def _read_optional_text(path: Path) -> str:
+    if not path.exists():
+        return ""
+    return path.read_text(encoding="utf-8")
+
+
 def _runtime_source(module_source: str) -> str:
     marker = "\nclass "
     _, sep, tail = module_source.partition(marker)
@@ -137,7 +169,56 @@ def _check_py_compile(module_path: Path) -> tuple[bool, str]:
         return False, str(exc)
 
 
-def _audit_step(step: dict[str, Any], runtime_source: str, generic_baseline_detected: bool) -> dict[str, str]:
+def _extract_module_metadata(module_source: str) -> dict[str, Any]:
+    metadata: dict[str, Any] = {}
+    try:
+        tree = ast.parse(module_source)
+    except SyntaxError:
+        return metadata
+    for node in tree.body:
+        if not isinstance(node, ast.Assign):
+            continue
+        for target in node.targets:
+            if not isinstance(target, ast.Name):
+                continue
+            if target.id in {
+                "STEP_SYMBOL_MAP",
+                "EXECUTION_SKELETON",
+                "PLAN_STEP_IDS",
+                "REPO_DERIVED_HINTS",
+                "DEFAULT_PARAMS",
+            }:
+                try:
+                    metadata[target.id] = ast.literal_eval(node.value)
+                except Exception:
+                    continue
+    return metadata
+
+
+def _extract_method_sources(module_source: str) -> dict[str, str]:
+    methods: dict[str, str] = {}
+    try:
+        tree = ast.parse(module_source)
+    except SyntaxError:
+        return methods
+    for node in tree.body:
+        if not isinstance(node, ast.ClassDef):
+            continue
+        for child in node.body:
+            if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                methods[child.name] = ast.get_source_segment(module_source, child) or ""
+    return methods
+
+
+def _audit_step(
+    step: dict[str, Any],
+    *,
+    runtime_source: str,
+    generic_baseline_detected: bool,
+    step_symbol_map: dict[str, Any],
+    method_sources: dict[str, str],
+    run_source: str,
+) -> dict[str, str]:
     step_id = str(step.get("step_id") or "").strip()
     title = str(step.get("title") or "").strip()
     lowered = step_id.lower()
@@ -145,6 +226,47 @@ def _audit_step(step: dict[str, Any], runtime_source: str, generic_baseline_dete
 
     status = "missing"
     reason = "No implementation signal detected for this plan step."
+
+    mapping = step_symbol_map.get(step_id) if isinstance(step_symbol_map, dict) else None
+    mapped_symbol = ""
+    todo_only = False
+    if isinstance(mapping, dict):
+        mapped_symbol = str(mapping.get("target_symbol") or "")
+        todo_only = bool(mapping.get("todo_only"))
+
+    if mapped_symbol.startswith("_"):
+        method_name = mapped_symbol
+        method_source = method_sources.get(method_name, "")
+        method_lower = method_source.lower()
+        method_called = bool(run_source and method_name in run_source)
+        if method_source:
+            has_todo = "todo(" in method_lower or "todo:" in method_lower
+            has_substantive_logic = any(
+                token in method_lower
+                for token in (
+                    "return ",
+                    "await ",
+                    "for ",
+                    "if ",
+                    "sorted(",
+                    "append(",
+                    "score(",
+                    "send(",
+                    "emit(",
+                )
+            )
+            if method_called and has_substantive_logic and not has_todo and not todo_only:
+                status = "implemented"
+                reason = f"Mapped helper `{mapped_symbol}` exists, is called from `run`, and contains non-TODO logic."
+            elif method_called or has_substantive_logic:
+                status = "partial"
+                reason = f"Mapped helper `{mapped_symbol}` exists, but still contains TODO-driven or placeholder behavior."
+            return {
+                "step_id": step_id,
+                "title": title,
+                "status": status,
+                "reason": reason,
+            }
 
     if lowered == "splice_instructions":
         if "instruction_prefixes" in source_lower and "instruction_suffixes" in source_lower:
@@ -202,6 +324,71 @@ def _audit_catalog(plan: dict[str, Any], catalog: dict[str, Any]) -> dict[str, A
     }
 
 
+def _audit_repo_support(
+    *,
+    plan: dict[str, Any],
+    module_metadata: dict[str, Any],
+    generation_notes_text: str,
+) -> dict[str, Any]:
+    repo_evidence = plan.get("repo_evidence") or []
+    divergences = plan.get("divergences") or []
+    repo_hints = module_metadata.get("REPO_DERIVED_HINTS", {})
+    default_params = module_metadata.get("DEFAULT_PARAMS", {})
+
+    repo_hint_keys = sorted(repo_hints.keys()) if isinstance(repo_hints, dict) else []
+    default_param_keys = sorted(default_params.keys()) if isinstance(default_params, dict) else []
+    divergence_topics = [
+        str(item.get("topic") or "").strip()
+        for item in divergences
+        if isinstance(item, dict) and str(item.get("topic") or "").strip()
+    ]
+
+    notes_lower = generation_notes_text.lower()
+    generation_notes_repo_section_present = (
+        "## repo support".lower() in notes_lower
+        or "## repo-derived hints".lower() in notes_lower
+    )
+
+    missing_signals: list[str] = []
+    if repo_hint_keys:
+        missing_default_keys = [key for key in repo_hint_keys if key not in default_param_keys]
+        if missing_default_keys:
+            missing_signals.append(
+                "Repo-derived hints were not mirrored into DEFAULT_PARAMS: "
+                + ", ".join(missing_default_keys)
+            )
+        if not generation_notes_repo_section_present:
+            missing_signals.append("Generation notes do not include a repo support section.")
+        missing_topics = [key for key in repo_hint_keys if key.lower() not in notes_lower]
+        if missing_topics:
+            missing_signals.append(
+                "Generation notes do not mention repo-derived hint topics: "
+                + ", ".join(missing_topics)
+            )
+
+    if divergences:
+        if "## divergences" not in notes_lower:
+            missing_signals.append("Generation notes do not include a divergences section.")
+        missing_divergence_topics = [
+            topic for topic in divergence_topics if topic.lower() not in notes_lower
+        ]
+        if missing_divergence_topics:
+            missing_signals.append(
+                "Generation notes do not mention divergence topics: "
+                + ", ".join(missing_divergence_topics)
+            )
+
+    return {
+        "repo_evidence_count": len(repo_evidence),
+        "divergence_count": len(divergences),
+        "repo_derived_hint_keys": repo_hint_keys,
+        "default_param_keys": default_param_keys,
+        "generation_notes_repo_section_present": generation_notes_repo_section_present,
+        "silent_repo_dependency_detected": bool(missing_signals),
+        "missing_signals": missing_signals,
+    }
+
+
 def _render_coverage_report(
     *,
     plan: dict[str, Any],
@@ -232,6 +419,12 @@ def _render_coverage_report(
     lines.append(
         f"- `generic_baseline_detected`: `{str(verdict['module_checks']['generic_baseline_detected']).lower()}`"
     )
+    lines.append(
+        f"- `execution_skeleton`: `{verdict['module_checks']['execution_skeleton'] or 'unknown'}`"
+    )
+    lines.append(
+        f"- `generation_notes_present`: `{str(verdict['module_checks']['generation_notes_present']).lower()}`"
+    )
     if verdict["module_checks"]["py_compile_error"]:
         lines.append(f"- `py_compile_error`: {verdict['module_checks']['py_compile_error']}")
     lines.append("")
@@ -244,6 +437,28 @@ def _render_coverage_report(
     lines.append(
         f"- `mismatches`: {', '.join(verdict['catalog_checks']['mismatches']) if verdict['catalog_checks']['mismatches'] else 'none'}"
     )
+    lines.append("")
+    lines.append("## Repo Support Checks")
+    lines.append("")
+    lines.append(
+        f"- `repo_evidence_count`: `{verdict['repo_support_checks']['repo_evidence_count']}`"
+    )
+    lines.append(
+        f"- `divergence_count`: `{verdict['repo_support_checks']['divergence_count']}`"
+    )
+    lines.append(
+        f"- `repo_derived_hint_keys`: {', '.join(verdict['repo_support_checks']['repo_derived_hint_keys']) if verdict['repo_support_checks']['repo_derived_hint_keys'] else 'none'}"
+    )
+    lines.append(
+        f"- `generation_notes_repo_section_present`: `{str(verdict['repo_support_checks']['generation_notes_repo_section_present']).lower()}`"
+    )
+    lines.append(
+        f"- `silent_repo_dependency_detected`: `{str(verdict['repo_support_checks']['silent_repo_dependency_detected']).lower()}`"
+    )
+    if verdict["repo_support_checks"]["missing_signals"]:
+        lines.append(
+            f"- `missing_signals`: {'; '.join(verdict['repo_support_checks']['missing_signals'])}"
+        )
     lines.append("")
     lines.append("## Recommended Actions")
     lines.append("")
@@ -280,6 +495,8 @@ def _render_review_checklist(
         lines.append(
             f"- Resolve catalog mismatches: {', '.join(catalog_checks['mismatches'])}"
         )
+    for missing_signal in verdict.get("repo_support_checks", {}).get("missing_signals", []):
+        lines.append(f"- Repo support gap: {missing_signal}")
     if not catalog_checks["supports_benchmark"]:
         lines.append("- Keep `supports_benchmark: false` until the audit findings are resolved.")
     lines.append("- Add focused tests before promotion.")
@@ -289,6 +506,6 @@ def _render_review_checklist(
     lines.append("")
     lines.append("- Does the runtime code actually execute each plan step, rather than only storing it in metadata?")
     lines.append("- Are paper-specific assumptions exposed as parameters instead of hidden logic?")
-    lines.append("- Is the draft still relying on the generic forge baseline?")
+    lines.append("- Does the selected execution skeleton match the paper's real control flow?")
     lines.append("")
     return "\n".join(lines)

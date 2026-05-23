@@ -1,10 +1,10 @@
 {
-  "attack_id": "radial",
-  "display_name": "Radial Attack",
-  "staging_dir": "staging/attacks/radial",
+  "attack_id": "radial_e2e",
+  "display_name": "Radial E2E Attack",
+  "staging_dir": "staging/attacks/radial_e2e",
   "planner_phase_a": {
     "planner_backend_used": "llm",
-    "planner_backend_requested": "auto",
+    "planner_backend_requested": "llm",
     "provider": "bedrock",
     "model": "us.anthropic.claude-sonnet-4-20250514-v1:0",
     "paper_title": "Analyzing the Inherent Response Tendency of LLMs: Real-World Instructions-Driven Jailbreak",
@@ -16,21 +16,29 @@
     "paper_json_path": "paper.json",
     "planner_excerpt_chars": 18000,
     "raw_planner_output_path": "raw_planner_output.json",
-    "raw_planner_response_path": "raw_planner_response.txt"
+    "raw_planner_response_path": "raw_planner_response.txt",
+    "reference_repo_url": "",
+    "reference_paths": [],
+    "reference_branch": "",
+    "reference_root": "",
+    "reference_backend_requested": "",
+    "reference_manifest_path": "",
+    "reference_snippets_dir": "",
+    "reference_snippet_count": 0
   },
   "family": "single_turn",
-  "module_name": "radial_attack",
-  "class_name": "RadialAttack",
-  "registered_name": "Single_Radial_Attack",
+  "module_name": "radial_e2e_attack",
+  "class_name": "RadialE2eAttack",
+  "registered_name": "Single_Radial_E2e_Attack",
   "promotion_targets": {
-    "attack_module": "promptmap/attacks/radial_attack.py",
-    "catalog_entry": "promptmap/catalog/attacks/radial.yaml"
+    "attack_module": "promptmap/attacks/radial_e2e_attack.py",
+    "catalog_entry": "promptmap/catalog/attacks/radial_e2e.yaml"
   },
   "forge_phase_b": {
-    "forge_backend_used": "heuristic",
-    "forge_backend_requested": "heuristic",
-    "provider": "",
-    "model": "",
+    "forge_backend_used": "llm",
+    "forge_backend_requested": "llm",
+    "provider": "bedrock",
+    "model": "us.anthropic.claude-sonnet-4-20250514-v1:0",
     "execution_skeleton": "dataset_rank_then_attack",
     "implementation_plan_json_path": "implementation_plan.json",
     "attack_module_path": "attack_module.py",
@@ -39,8 +47,8 @@
     "review_checklist_path": "review_checklist.md",
     "generation_notes_path": "generation_notes.md",
     "py_compile_ok": true,
-    "raw_forge_output_path": "",
-    "raw_forge_response_path": ""
+    "raw_forge_output_path": "raw_forge_output.json",
+    "raw_forge_response_path": "raw_forge_response.txt"
   },
   "audit_phase_c": {
     "coverage_report_path": "coverage_report.md",

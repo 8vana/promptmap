@@ -17,6 +17,7 @@ The tool currently supports:
 - `plan`
 - `forge`
 - `audit`
+- `verify`
 
 `scaffold` is the original metadata-first skeleton generator.
 
@@ -29,6 +30,10 @@ catalog and review artifacts.
 
 `audit` is the Phase C auditor MVP. It compares the implementation plan against
 the generated module and catalog, then writes a coverage report and verdict.
+
+`verify` is the promotion-oriented local verification layer. It performs
+artifact checks such as import smoke, catalog schema validation, plan contract
+validation, and reference artifact consistency checks.
 
 ## What `scaffold` generates
 
@@ -96,6 +101,15 @@ For a given paper input, `plan` creates or enriches a staging directory with:
 - `implementation_plan.md`
 - `manifest.json` updated with `planner_phase_a`
 
+When reference repo inputs are supplied, `plan` also writes:
+
+- `reference_manifest.json`
+- `reference_snippets/`
+
+Those snippets are passed to the planner as a separate supplementary channel
+and may populate `repo_evidence` / `divergences` in
+`implementation_plan.json`.
+
 When LLM refinement is used, `plan` also stores:
 
 - `raw_planner_output.json`
@@ -124,6 +138,28 @@ python -m tools.paper_attack_scaffold plan \
   --paper-url "https://arxiv.org/abs/2312.04127"
 ```
 
+With optional supplementary repo hints:
+
+```bash
+python -m tools.paper_attack_scaffold plan \
+  --attack-id radial \
+  --pdf-path papers/radial.pdf \
+  --paper-url "https://arxiv.org/abs/2312.04127" \
+  --reference-repo-url "https://github.com/example/radial" \
+  --reference-path attacks/radial.py \
+  --reference-path README.md
+```
+
+Or use a local extracted repo root instead of GitHub fetch:
+
+```bash
+python -m tools.paper_attack_scaffold plan \
+  --attack-id radial \
+  --paper-text-path papers/radial.md \
+  --reference-root /path/to/reference-repo \
+  --reference-path attacks/radial.py
+```
+
 Optional LLM-assisted refinement:
 
 ```bash
@@ -144,6 +180,17 @@ Planner behavior:
   Uses the local heuristic planner only.
 - `--planner-backend llm`
   Requires a configured provider/model and fails if the LLM path cannot run.
+
+Reference repo behavior:
+
+- `--reference-repo-url`
+  Declares a supplementary GitHub repository for later repo evidence ingestion.
+- `--reference-path`
+  Narrows repo support to explicit repo-relative files.
+- `--reference-root`
+  Uses a local extracted repo directory instead of GitHub fetch.
+- `--reference-branch`
+  Selects a GitHub branch for raw-file fetch mode.
 
 ## `forge` usage
 
@@ -166,13 +213,39 @@ python -m tools.paper_attack_scaffold forge \
   --force
 ```
 
-`forge` currently uses a local heuristic coder. It does not require an LLM.
+Optional LLM-assisted forge:
+
+```bash
+python -m tools.paper_attack_scaffold forge \
+  --attack-id radial \
+  --output-dir staging/attacks \
+  --forge-backend auto \
+  --provider bedrock \
+  --model anthropic.claude-3-5-sonnet-20241022-v2:0 \
+  --force
+```
+
+`forge` supports:
+
+- `--forge-backend heuristic`
+  Uses the local deterministic coder only.
+- `--forge-backend llm`
+  Requires a configured provider/model and fails if the LLM path cannot run.
+- `--forge-backend auto`
+  Uses LLM refinement when configured, else falls back to heuristic forge.
+
+Even in LLM mode, the tool keeps the heuristic forge as a safe fallback and
+preserves explicit TODOs and ambiguities.
+
 It writes:
 
 - `attack_module.py`
 - `attack_catalog.yaml`
 - `benchmark_notes.md`
 - `review_checklist.md`
+- `generation_notes.md`
+- `raw_forge_output.json` when LLM forge is used
+- `raw_forge_response.txt` when LLM forge is used
 - `manifest.json` updated with `forge_phase_b`
 
 ## `audit` usage
@@ -200,6 +273,32 @@ python -m tools.paper_attack_scaffold audit \
 - `audit_verdict.json`
 - `review_checklist.md`
 - `manifest.json` updated with `audit_phase_c`
+
+## `verify` usage
+
+Run `verify` after `forge`, or after manual refinement, to perform local
+promotion checks on the staging artifacts.
+
+```bash
+python -m tools.paper_attack_scaffold verify \
+  --attack-id radial \
+  --output-dir staging/attacks \
+  --force
+```
+
+Or point directly at a staging directory:
+
+```bash
+python -m tools.paper_attack_scaffold verify \
+  --staging-dir staging/attacks/radial \
+  --force
+```
+
+`verify` writes:
+
+- `verification_report.md`
+- `verification_report.json`
+- `manifest.json` updated with `verification_phase_e`
 
 ## Evidence Model
 

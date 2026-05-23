@@ -15,130 +15,27 @@ from promptmap.engine.events import (
 )
 from promptmap.engine.models import AttackResult, Message
 
-ATTACK_NAME = 'Single_Radial_Attack'
-PLAN_FAMILY = 'single_turn'
-EXECUTION_SKELETON = 'dataset_rank_then_attack'
-PLAN_SUMMARY = ('RADIAL is a jailbreak attack method that analyzes the inherent response tendencies '
- 'of LLMs by measuring generation probabilities for affirmative vs. rejection '
- 'responses to real-world instructions. It then strategically splices high-scoring '
- 'real-world instructions (those that induce affirmative responses) around malicious '
- 'instructions to bypass safety mechanisms.')
-DEFAULT_PARAMS = {'num_affirmation_responses': 20,
- 'num_rejection_responses': 20,
- 'real_world_instructions_count': 30000,
- 'spliced_instructions_count': [2, 4],
- 'malicious_instruction_position': 'end'}
-REPO_DERIVED_HINTS = {}
-PLAN_STEPS = [{'step_id': 'construct_responses',
-  'title': 'Construct Affirmation and Rejection Responses',
-  'description': "Create 20 general affirmation responses (e.g., 'Sure, here's the "
-                 "information.') and 20 general rejection responses (e.g., 'Sorry, I "
-                 "am unable to provide the information').",
-  'evidence_refs': ['paper:section:3_2', 'paper:appendix_ref:a'],
-  'status': 'ambiguous',
-  'notes': []},
- {'step_id': 'collect_instructions',
-  'title': 'Collect Real-World Instructions',
-  'description': 'Gather 30,000 real-world English instructions from the alpaca '
-                 'official repository to use as candidate instructions for analysis.',
-  'evidence_refs': ['paper:section:3_2'],
-  'status': 'supported',
-  'notes': []},
- {'step_id': 'calculate_probabilities',
-  'title': 'Calculate Response Tendencies',
-  'description': 'For each real-world instruction X, calculate affirmation tendency '
-                 '(Ta) and rejection tendency (Tr) using generation probabilities of '
-                 'constructed responses.',
-  'evidence_refs': ['paper:section:3_2', 'paper:formula:3_2'],
-  'status': 'ambiguous',
-  'notes': []},
- {'step_id': 'score_instructions',
-  'title': 'Score and Rank Instructions',
-  'description': "Calculate a score for each instruction reflecting the LLM's inherent "
-                 'tendency to affirm, then rank instructions by score.',
-  'evidence_refs': ['paper:section:3_2'],
-  'status': 'ambiguous',
-  'notes': []},
- {'step_id': 'filter_instructions',
-  'title': 'Filter Text Manipulation Instructions',
-  'description': 'Remove text manipulation instructions such as translation or text '
-                 'rewriting commands that would manipulate the malicious instruction '
-                 'itself.',
-  'evidence_refs': ['paper:section:3_3'],
-  'status': 'supported',
-  'notes': []},
- {'step_id': 'select_top_instructions',
-  'title': 'Select High-Scoring Instructions',
-  'description': 'Select real-world instructions from the top of the ranking that can '
-                 'inherently induce LLMs to generate affirmation responses.',
-  'evidence_refs': ['paper:section:3_3'],
-  'status': 'ambiguous',
-  'notes': []},
- {'step_id': 'splice_instructions',
-  'title': 'Strategically Splice Instructions',
-  'description': 'Combine 2 or 4 selected real-world instructions with the malicious '
-                 'instruction, placing the malicious instruction at the end of the '
-                 'prompt for optimal performance.',
-  'evidence_refs': ['paper:section:3_3'],
-  'status': 'supported',
-  'notes': []}]
-PROMPT_FRAGMENTS = [{'name': 'affirmation_response_example',
-  'text': "Sure, here's the information.",
-  'evidence_refs': ['paper:section:3_2']},
- {'name': 'rejection_response_example',
-  'text': 'Sorry, I am unable to provide the information',
-  'evidence_refs': ['paper:section:3_2']}]
-PLAN_AMBIGUITIES = ['Planner MVP generated this draft heuristically; validate the attack flow against the '
- 'paper.',
- 'Default parameters are provisional unless the paper states them explicitly.',
- 'Mathematical formulas for calculating probabilities and scores are not decoded in '
- 'the excerpt',
- 'Specific affirmation and rejection response templates are referenced in App. A but '
- 'not provided',
- 'Exact number of top-ranked instructions to select is not specified',
- 'Specific criteria for filtering text manipulation instructions beyond examples',
- 'Implementation details for probability extraction from LLMs',
- 'Evaluation results table appears truncated',
- 'Benchmark recommendation was normalized to false in Phase A pending explicit human '
- 'review.']
-PLAN_STEP_IDS = ['construct_responses',
- 'collect_instructions',
- 'calculate_probabilities',
- 'score_instructions',
- 'filter_instructions',
- 'select_top_instructions',
- 'splice_instructions']
-STEP_SYMBOL_MAP = {'construct_responses': {'mapping_type': 'helper_method',
-                         'target_symbol': '_build_response_templates',
-                         'todo_only': True},
- 'collect_instructions': {'mapping_type': 'helper_method',
-                          'target_symbol': '_collect_candidate_instructions',
-                          'todo_only': True},
- 'calculate_probabilities': {'mapping_type': 'helper_method',
-                             'target_symbol': '_calculate_response_tendencies',
-                             'todo_only': True},
- 'score_instructions': {'mapping_type': 'helper_method',
-                        'target_symbol': '_rank_candidate_instructions',
-                        'todo_only': False},
- 'filter_instructions': {'mapping_type': 'helper_method',
-                         'target_symbol': '_filter_text_manipulation_instructions',
-                         'todo_only': False},
- 'select_top_instructions': {'mapping_type': 'helper_method',
-                             'target_symbol': '_select_top_instructions',
-                             'todo_only': False},
- 'splice_instructions': {'mapping_type': 'helper_method',
-                         'target_symbol': '_build_attack_prompt',
-                         'todo_only': False}}
-AFFIRMATION_RESPONSE_EXAMPLES = ["Sure, here's the information."]
-REJECTION_RESPONSE_EXAMPLES = ['Sorry, I am unable to provide the information']
-DEFAULT_SELECTED_INSTRUCTION_COUNT = 2
+ATTACK_NAME = {{ registered_name_repr }}
+PLAN_FAMILY = {{ family_repr }}
+EXECUTION_SKELETON = {{ execution_skeleton_repr }}
+PLAN_SUMMARY = {{ summary_literal }}
+DEFAULT_PARAMS = {{ default_params_literal }}
+REPO_DERIVED_HINTS = {{ repo_derived_hints_literal }}
+PLAN_STEPS = {{ plan_steps_literal }}
+PROMPT_FRAGMENTS = {{ prompt_fragments_literal }}
+PLAN_AMBIGUITIES = {{ ambiguities_literal }}
+PLAN_STEP_IDS = {{ plan_step_ids_literal }}
+STEP_SYMBOL_MAP = {{ step_symbol_map_literal }}
+AFFIRMATION_RESPONSE_EXAMPLES = {{ affirmation_examples_literal }}
+REJECTION_RESPONSE_EXAMPLES = {{ rejection_examples_literal }}
+DEFAULT_SELECTED_INSTRUCTION_COUNT = {{ selected_instruction_default_literal }}
 
 
-class RadialAttack(BaseAttack):
-    """Plan-driven draft for "Radial Attack".
+class {{ class_name }}(BaseAttack):
+    """Plan-driven draft for "{{ display_name }}".
 
-    Paper: Analyzing the Inherent Response Tendency of LLMs: Real-World Instructions-Driven Jailbreak
-    URL: https://arxiv.org/abs/2312.04127
+    Paper: {{ paper_title_or_tbd }}
+    URL: {{ paper_url_or_tbd }}
 
     This file is produced by the strengthened Phase B forge workflow.
     It uses a dataset-rank-then-attack skeleton so the code structure follows
@@ -159,7 +56,7 @@ class RadialAttack(BaseAttack):
     def _build_response_templates(self) -> dict[str, list[str]]:
         """Plan step: construct_responses.
 
-        TODO(radial:construct_responses):
+        TODO({{ attack_id }}:construct_responses):
         Expand these examples into the full response sets referenced in the paper.
         """
         return {
@@ -170,7 +67,7 @@ class RadialAttack(BaseAttack):
     async def _collect_candidate_instructions(self, ctx: AttackContext, params: dict) -> list[str]:
         """Plan step: collect_instructions.
 
-        TODO(radial:collect_instructions):
+        TODO({{ attack_id }}:collect_instructions):
         Load or derive the candidate instruction pool from the paper-defined data source.
         """
         provided = params.get("candidate_instructions")
@@ -190,7 +87,7 @@ class RadialAttack(BaseAttack):
     ) -> list[dict]:
         """Plan step: calculate_probabilities.
 
-        TODO(radial:calculate_probabilities):
+        TODO({{ attack_id }}:calculate_probabilities):
         Replace this placeholder with paper-defined probability extraction / scoring.
         """
         results: list[dict] = []
@@ -287,7 +184,7 @@ class RadialAttack(BaseAttack):
         conversation: list[Message] = []
 
         await ctx.emit(ProgressEvent(EVT_INFO, data={
-            "text": "Radial Attack forge draft executing dataset-rank-then-attack skeleton."
+            "text": "{{ display_name }} forge draft executing dataset-rank-then-attack skeleton."
         }))
         await ctx.emit(ProgressEvent(EVT_INFO, data={
             "text": f"Plan steps: {', '.join(PLAN_STEP_IDS)}"
@@ -334,8 +231,8 @@ class RadialAttack(BaseAttack):
             conversation=conversation,
             metadata={
                 "family": PLAN_FAMILY,
-                "paper_title": 'Analyzing the Inherent Response Tendency of LLMs: Real-World Instructions-Driven Jailbreak',
-                "paper_url": 'https://arxiv.org/abs/2312.04127',
+                "paper_title": {{ paper_title_repr }},
+                "paper_url": {{ paper_url_repr }},
                 "forge_status": "draft",
                 "execution_skeleton": EXECUTION_SKELETON,
                 "plan_summary": PLAN_SUMMARY,

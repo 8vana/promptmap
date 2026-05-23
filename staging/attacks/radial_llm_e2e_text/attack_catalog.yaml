@@ -1,0 +1,25 @@
+attack_id: radial_llm_e2e_text
+import_path: promptmap.attacks.radial_llm_e2e_text_attack:RadialLlmE2eTextAttack
+registered_name: Single_Radial_Llm_E2e_Text_Attack
+display_name: Radial LLM E2E Text Attack
+family: single_turn
+description: RADIAL is an automated jailbreak method that analyzes the inherent response tendency
+  of LLMs by calculating generation probabilities for affirmative vs. rejection responses
+  to real-world instructions. It identifies instructions that inherently induce affirmative
+  responses, then strategically splices these around malicious instructions to bypass
+  safety mechanisms. The method requires only 40 manually-crafted responses (20 affirmative,
+  20 rejection) and produces semantically coherent attack prompts.
+source_type: generated
+paper_title: 'Analyzing the Inherent Response Tendency of LLMs: Real-World Instructions-Driven
+  Jailbreak'
+paper_url: https://arxiv.org/abs/2312.04127
+paper_year: null
+prompt_technique_aware: false
+supports_benchmark: false
+target_modes: [api, stateless]
+required_capabilities: [scorer_llm]
+tags: [generated, research, paper_forge, single_turn, jailbreak, prompt_injection]
+default_params: {num_affirmation_responses: 20, num_rejection_responses: 20, num_real_world_instructions: 30000,
+  spliced_instructions_count: [2, 4], malicious_instruction_position: end}
+benchmark_defaults: {}
+compatible_atlas_techniques: []
