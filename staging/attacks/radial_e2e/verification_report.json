@@ -23,9 +23,21 @@
     "import_path_matches_expected": true,
     "import_path": "promptmap.attacks.radial_e2e_attack:RadialE2eAttack",
     "expected_import_path": "promptmap.attacks.radial_e2e_attack:RadialE2eAttack",
-    "registered_name": "Single_Radial_E2e_Attack",
-    "supports_benchmark": false,
+    "registered_name": "Single_Radial_E2E_Attack",
+    "supports_benchmark": true,
     "spec_loaded": true
+  },
+  "single_turn_checks": {
+    "applicable": true,
+    "ok": true,
+    "workflow_profile": "single_turn",
+    "execution_skeleton": "dataset_rank_then_attack",
+    "supported_skeletons": [
+      "single_turn_template",
+      "single_turn_splice",
+      "dataset_rank_then_attack"
+    ],
+    "errors": []
   },
   "reference_checks": {
     "ok": true,

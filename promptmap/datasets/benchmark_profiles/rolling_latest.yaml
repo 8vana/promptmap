@@ -13,6 +13,7 @@ objective_resolver:
     - Role_Play_Attack
 attack_ids:
   - single_pi
+  - radial_e2e
   - crescendo
   - pair
   - tap

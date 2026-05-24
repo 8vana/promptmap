@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import hashlib
 import importlib.util
 from dataclasses import dataclass
@@ -14,6 +15,12 @@ from promptmap.engine.base_attack import BaseAttack
 from promptmap.registry.attack_spec import AttackSpec
 
 from .common import normalize_attack_id, to_class_name
+from .single_turn import (
+    SUPPORTED_SINGLE_TURN_SKELETONS,
+    has_complete_step_symbol_map,
+    is_single_turn_family,
+    is_supported_single_turn_skeleton,
+)
 
 
 @dataclass(frozen=True)
@@ -51,6 +58,7 @@ def run_verify(config: VerifyConfig) -> VerifyOutcome:
     catalog_data = yaml.safe_load(catalog_path.read_text(encoding="utf-8")) or {}
     manifest = _read_json_dict(manifest_path)
     reference_manifest = _read_json_dict(reference_manifest_path)
+    module_metadata = _extract_module_metadata(module_source)
 
     attack_id = normalize_attack_id(str(plan.get("attack_id") or config.attack_id))
     expected_class_name = to_class_name(attack_id)
@@ -97,6 +105,18 @@ def run_verify(config: VerifyConfig) -> VerifyOutcome:
             "Align attack_catalog.yaml import_path with the promotion target."
         )
 
+    single_turn_checks = _verify_single_turn_profile(
+        plan=plan,
+        manifest=manifest,
+        module_metadata=module_metadata,
+        catalog_data=catalog_data,
+    )
+    if not single_turn_checks["ok"]:
+        categories.append("single_turn_profile_incomplete")
+        recommended_next_actions.append(
+            "Complete the single-turn profile checks before treating this draft as single-turn complete."
+        )
+
     reference_checks = _verify_reference_artifacts(
         reference_manifest=reference_manifest,
         reference_snippets_dir=reference_snippets_dir,
@@ -133,6 +153,7 @@ def run_verify(config: VerifyConfig) -> VerifyOutcome:
             **import_smoke,
         },
         "catalog_checks": catalog_checks,
+        "single_turn_checks": single_turn_checks,
         "reference_checks": reference_checks,
         "recommended_next_actions": recommended_next_actions,
         "promotion_targets": manifest.get("promotion_targets", {}),
@@ -295,6 +316,87 @@ def _verify_catalog(
     }
 
 
+def _extract_module_metadata(module_source: str) -> dict[str, Any]:
+    metadata: dict[str, Any] = {}
+    try:
+        tree = ast.parse(module_source)
+    except SyntaxError:
+        return metadata
+    for node in tree.body:
+        if not isinstance(node, ast.Assign):
+            continue
+        for target in node.targets:
+            if not isinstance(target, ast.Name):
+                continue
+            if target.id in {
+                "EXECUTION_SKELETON",
+                "STEP_SYMBOL_MAP",
+                "PLAN_STEP_IDS",
+            }:
+                try:
+                    metadata[target.id] = ast.literal_eval(node.value)
+                except Exception:
+                    continue
+    return metadata
+
+
+def _verify_single_turn_profile(
+    *,
+    plan: dict[str, Any],
+    manifest: dict[str, Any],
+    module_metadata: dict[str, Any],
+    catalog_data: dict[str, Any],
+) -> dict[str, Any]:
+    family = str(plan.get("family") or "").strip()
+    if not is_single_turn_family(family):
+        return {
+            "applicable": False,
+            "ok": True,
+            "workflow_profile": str(manifest.get("forge_phase_b", {}).get("workflow_profile") or ""),
+            "supported_skeletons": list(SUPPORTED_SINGLE_TURN_SKELETONS),
+            "errors": [],
+        }
+
+    execution_skeleton = str(
+        manifest.get("forge_phase_b", {}).get("execution_skeleton")
+        or module_metadata.get("EXECUTION_SKELETON")
+        or ""
+    )
+    workflow_profile = str(manifest.get("forge_phase_b", {}).get("workflow_profile") or "")
+    if not workflow_profile and is_supported_single_turn_skeleton(execution_skeleton):
+        workflow_profile = "single_turn"
+    step_symbol_map = module_metadata.get("STEP_SYMBOL_MAP", {})
+    registered_name = str(catalog_data.get("registered_name") or "")
+    errors: list[str] = []
+
+    if not is_supported_single_turn_skeleton(execution_skeleton):
+        errors.append(
+            f"Unsupported single-turn execution skeleton: {execution_skeleton or 'missing'}"
+        )
+    if workflow_profile != "single_turn":
+        errors.append(
+            f"workflow_profile should be 'single_turn' for single-turn plans, got: {workflow_profile or 'missing'}"
+        )
+    if not registered_name.startswith("Single_"):
+        errors.append(
+            f"registered_name should use the Single_ prefix for single-turn attacks: {registered_name or 'missing'}"
+        )
+    if not has_complete_step_symbol_map(
+        plan.get("algorithm_steps", []) if isinstance(plan.get("algorithm_steps"), list) else [],
+        step_symbol_map if isinstance(step_symbol_map, dict) else {},
+    ):
+        errors.append("STEP_SYMBOL_MAP does not cover every algorithm step.")
+
+    return {
+        "applicable": True,
+        "ok": not errors,
+        "workflow_profile": workflow_profile,
+        "execution_skeleton": execution_skeleton,
+        "supported_skeletons": list(SUPPORTED_SINGLE_TURN_SKELETONS),
+        "errors": errors,
+    }
+
+
 def _verify_reference_artifacts(
     *,
     reference_manifest: dict[str, Any],
@@ -423,6 +525,23 @@ def _render_verification_report(report: dict[str, Any]) -> str:
     )
     if report["reference_checks"]["errors"]:
         lines.append(f"- `errors`: {'; '.join(report['reference_checks']['errors'])}")
+    lines.append("")
+    lines.append("## Single-Turn Checks")
+    lines.append("")
+    lines.append(
+        f"- `applicable`: `{str(report['single_turn_checks']['applicable']).lower()}`"
+    )
+    lines.append(
+        f"- `ok`: `{str(report['single_turn_checks']['ok']).lower()}`"
+    )
+    workflow_profile = report["single_turn_checks"].get("workflow_profile", "")
+    if workflow_profile:
+        lines.append(f"- `workflow_profile`: `{workflow_profile}`")
+    execution_skeleton = report["single_turn_checks"].get("execution_skeleton", "")
+    if execution_skeleton:
+        lines.append(f"- `execution_skeleton`: `{execution_skeleton}`")
+    if report["single_turn_checks"]["errors"]:
+        lines.append(f"- `errors`: {'; '.join(report['single_turn_checks']['errors'])}")
     lines.append("")
     lines.append("## Recommended Actions")
     lines.append("")

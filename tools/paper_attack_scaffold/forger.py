@@ -19,6 +19,7 @@ from .common import (
     yaml_scalar,
 )
 from .llm_client import LLMConfig, parse_json_response, run_prompt_sync
+from .single_turn import infer_single_turn_profile_name
 
 
 @dataclass(frozen=True)
@@ -40,6 +41,8 @@ class ForgeOutcome:
     class_name: str
     registered_name: str
     execution_skeleton: str
+    classification_signals: list[str]
+    workflow_profile: str
     attack_module_text: str
     attack_catalog_text: str
     benchmark_notes_text: str
@@ -81,7 +84,8 @@ def build_forge_artifacts(config: ForgeConfig) -> ForgeOutcome:
     benchmark_defaults: dict[str, Any] = {}
     tags = _derive_tags(plan)
     compatible_atlas_techniques: list[str] = []
-    execution_skeleton = _classify_execution_skeleton(plan)
+    execution_skeleton, classification_signals = _classify_execution_skeleton(plan)
+    workflow_profile = infer_single_turn_profile_name(execution_skeleton) if family == "single_turn" else family
     step_symbol_map = _build_step_symbol_map(plan, execution_skeleton)
     selected_instruction_default = _infer_selected_instruction_default(default_params)
     affirmation_examples, rejection_examples = _split_prompt_fragments(plan.get("prompt_fragments"))
@@ -126,6 +130,9 @@ def build_forge_artifacts(config: ForgeConfig) -> ForgeOutcome:
         "family_repr": repr(family),
         "execution_skeleton": execution_skeleton,
         "execution_skeleton_repr": repr(execution_skeleton),
+        "classification_signals_literal": _py_literal(classification_signals),
+        "workflow_profile": workflow_profile,
+        "workflow_profile_repr": repr(workflow_profile),
         "summary_literal": _py_literal(str(plan.get("summary") or "")),
         "default_params_literal": _py_literal(default_params),
         "repo_derived_hints_literal": _py_literal(repo_derived_hints),
@@ -151,6 +158,8 @@ def build_forge_artifacts(config: ForgeConfig) -> ForgeOutcome:
         execution_skeleton=execution_skeleton,
         step_symbol_map=step_symbol_map,
         repo_derived_hints=repo_derived_hints,
+        classification_signals=classification_signals,
+        workflow_profile=workflow_profile,
     )
     forge_backend_used = "heuristic"
     raw_payload: dict[str, Any] | None = None
@@ -209,6 +218,8 @@ def build_forge_artifacts(config: ForgeConfig) -> ForgeOutcome:
         class_name=class_name,
         registered_name=registered_name,
         execution_skeleton=execution_skeleton,
+        classification_signals=classification_signals,
+        workflow_profile=workflow_profile,
         attack_module_text=attack_module_text,
         attack_catalog_text=attack_catalog_text,
         benchmark_notes_text=benchmark_notes_text,
@@ -275,7 +286,7 @@ def _check_compiles(temp_path: Path, source: str) -> bool:
             temp_path.unlink()
 
 
-def _classify_execution_skeleton(plan: dict[str, Any]) -> str:
+def _classify_execution_skeleton(plan: dict[str, Any]) -> tuple[str, list[str]]:
     family = str(plan.get("family") or "").strip()
     steps = plan.get("algorithm_steps") or []
     step_text = " ".join(
@@ -289,23 +300,36 @@ def _classify_execution_skeleton(plan: dict[str, Any]) -> str:
         if isinstance(fragment, dict)
     ).lower()
 
+    signals: list[str] = []
+
     if family == "autonomous":
-        return "autonomous_loop"
+        return "autonomous_loop", ["family=autonomous"]
     if family == "multi_turn":
-        return "multi_turn_refinement"
+        return "multi_turn_refinement", ["family=multi_turn"]
 
     has_rank = any(token in step_text for token in ("rank", "score"))
     has_select = "select" in step_text
     has_splice = "splice" in step_text or "prefix" in step_text or "suffix" in step_text
     has_collect = any(token in step_text for token in ("collect", "dataset", "candidate"))
+    if has_rank:
+        signals.append("has_rank_or_score_steps")
+    if has_select:
+        signals.append("has_select_step")
+    if has_splice:
+        signals.append("has_splice_or_prefix_suffix_step")
+    if has_collect:
+        signals.append("has_collect_or_dataset_step")
+    if prompt_text:
+        signals.append("has_prompt_fragments")
 
     if has_rank and has_select and has_splice and has_collect:
-        return "dataset_rank_then_attack"
+        return "dataset_rank_then_attack", signals
     if has_splice:
-        return "single_turn_splice"
+        return "single_turn_splice", signals
     if prompt_text:
-        return "single_turn_template"
-    return "single_turn_template"
+        return "single_turn_template", signals
+    signals.append("defaulted_to_single_turn_template")
+    return "single_turn_template", signals
 
 
 def _template_for_execution_skeleton(execution_skeleton: str) -> str:
@@ -472,6 +496,8 @@ def _render_generation_notes(
     execution_skeleton: str,
     step_symbol_map: dict[str, dict[str, Any]],
     repo_derived_hints: dict[str, Any],
+    classification_signals: list[str],
+    workflow_profile: str,
 ) -> str:
     lines: list[str] = []
     lines.append(f"# Generation Notes: {plan.get('display_name') or plan.get('attack_id')}")
@@ -480,6 +506,12 @@ def _render_generation_notes(
     lines.append("")
     lines.append(f"- `execution_skeleton`: `{execution_skeleton}`")
     lines.append(f"- `family`: `{plan.get('family')}`")
+    lines.append(f"- `workflow_profile`: `{workflow_profile}`")
+    lines.append("")
+    lines.append("## Classification Signals")
+    lines.append("")
+    for signal in classification_signals or ["none"]:
+        lines.append(f"- `{signal}`")
     lines.append("")
     lines.append("## Step Mapping")
     lines.append("")

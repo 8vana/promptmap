@@ -3,24 +3,24 @@
 ## Verdict
 
 - `verdict`: `pass_with_review`
-- `categories`: benchmark_not_advised
+- `categories`: none
 
 ## Step Coverage
 
 ### construct_responses: Construct Affirmation and Rejection Responses
 
-- `status`: `partial`
-- Mapped helper `_build_response_templates` exists, but still contains TODO-driven or placeholder behavior.
+- `status`: `implemented`
+- Mapped helper `_build_response_templates` exists, is called from `run`, and contains non-TODO logic.
 
 ### collect_instructions: Collect Real-World Instructions
 
-- `status`: `partial`
-- Mapped helper `_collect_candidate_instructions` exists, but still contains TODO-driven or placeholder behavior.
+- `status`: `implemented`
+- Mapped helper `_collect_candidate_instructions` exists, is called from `run`, and contains non-TODO logic.
 
 ### calculate_tendencies: Calculate Response Tendencies
 
-- `status`: `partial`
-- The step identifier appears in the draft metadata, but there is no step-specific runtime logic.
+- `status`: `implemented`
+- Mapped helper `_calculate_response_tendencies` exists, is called from `run`, and contains non-TODO logic.
 
 ### score_instructions: Score and Rank Instructions
 
@@ -46,8 +46,8 @@
 
 ## Catalog Checks
 
-- `supports_benchmark`: `false`
-- `source_type`: `generated`
+- `supports_benchmark`: `true`
+- `source_type`: `builtin`
 - `mismatches`: none
 
 ## Repo Support Checks
@@ -60,4 +60,4 @@
 
 ## Recommended Actions
 
-- Keep supports_benchmark disabled until the implementation is paper-faithful and tested.
+- No additional actions recorded.

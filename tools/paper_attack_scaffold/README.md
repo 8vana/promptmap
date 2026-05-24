@@ -18,6 +18,7 @@ The tool currently supports:
 - `forge`
 - `audit`
 - `verify`
+- `status`
 
 `scaffold` is the original metadata-first skeleton generator.
 
@@ -34,6 +35,53 @@ the generated module and catalog, then writes a coverage report and verdict.
 `verify` is the promotion-oriented local verification layer. It performs
 artifact checks such as import smoke, catalog schema validation, plan contract
 validation, and reference artifact consistency checks.
+
+`status` is the workflow-oriented summary layer. It combines manifest data plus
+`audit` / `verify` outputs and reports whether a staging target is currently
+`planned`, `forged`, `review_ready`, `promotion_ready`, or
+`benchmark_candidate`.
+
+## Current Completion Scope
+
+The workflow is currently being completed with a **single-turn-first** strategy.
+
+That means the primary completion target is not "paper-faithful auto-reproduction
+of every jailbreak paper", but rather:
+
+- stable `plan -> forge -> audit -> verify -> status` execution
+- PromptMap-compatible attack module drafts
+- explicit review surfaces for missing or partial implementation
+- promotion and benchmark gates that are separate from code generation
+
+The supported single-turn execution skeletons are:
+
+- `single_turn_template`
+- `single_turn_splice`
+- `dataset_rank_then_attack`
+
+Multi-turn and autonomous templates exist, but single-turn is the main
+hardening target for workflow completion.
+
+## Suggested Single-Turn Validation Set
+
+When hardening the single-turn workflow, it helps to keep a small validation set
+that exercises each supported skeleton:
+
+- `single_turn_template`
+  A paper whose runnable draft is mostly a one-shot prompt-construction attack.
+- `single_turn_splice`
+  A paper whose main behavior is prefix/suffix/sandwich-style prompt splicing.
+- `dataset_rank_then_attack`
+  A paper like RADIAL, where the plan contains collect / score / rank / select /
+  splice stages.
+
+The goal of this validation set is not perfect paper reproduction. It is to
+confirm that:
+
+- `plan` produces a forge-consumable implementation plan
+- `forge` selects the intended single-turn skeleton
+- `audit` explains missing vs partial vs implemented steps
+- `verify` and `status` agree on promotion readiness
 
 ## What `scaffold` generates
 
@@ -299,6 +347,65 @@ python -m tools.paper_attack_scaffold verify \
 - `verification_report.md`
 - `verification_report.json`
 - `manifest.json` updated with `verification_phase_e`
+
+## `status` usage
+
+Run `status` after any combination of `plan`, `forge`, `audit`, and `verify`
+to summarize workflow completeness and next actions.
+
+```bash
+python -m tools.paper_attack_scaffold status \
+  --attack-id radial \
+  --output-dir staging/attacks \
+  --force
+```
+
+Or point directly at a staging directory:
+
+```bash
+python -m tools.paper_attack_scaffold status \
+  --staging-dir staging/attacks/radial \
+  --force
+```
+
+`status` writes:
+
+- `workflow_status.md`
+- `workflow_status.json`
+- `manifest.json` updated with `workflow_status_phase_f`
+
+The status layer currently tracks these completion checks:
+
+- `pipeline_complete`
+- `runnable_draft_ready`
+- `review_ready`
+- `promotion_ready`
+- `benchmark_candidate`
+
+For single-turn attacks it also records profile-oriented checks such as:
+
+- whether the selected skeleton is one of the supported single-turn skeletons
+- whether the single-turn workflow profile is aligned in `manifest.json`
+- whether `verify` considers the single-turn profile complete
+
+## Single-Turn Promotion Criteria
+
+For a single-turn draft, `promotion_ready` is intended to mean:
+
+- `plan`, `forge`, `audit`, and `verify` all ran
+- `verify` returned `pass`
+- `audit` returned `pass_with_review`
+- no missing plan steps remain
+- no generic baseline flow remains
+- catalog mismatches are absent
+- the single-turn profile checks pass
+
+`benchmark_candidate` is stricter and remains separate from `promotion_ready`.
+It should only be used after stable execution and benchmark suitability are
+explicitly confirmed.
+
+This makes the forge workflow easier to operate as a reusable pipeline instead
+of a one-off paper reproduction script.
 
 ## Evidence Model
 
