@@ -1,0 +1,45 @@
+{
+  "attack_id": "radial_e2e",
+  "workflow_stage": "benchmark_candidate",
+  "workflow_profile": "single_turn",
+  "phase_presence": {
+    "plan": true,
+    "forge": true,
+    "audit": true,
+    "verify": true
+  },
+  "completion_checks": {
+    "pipeline_complete": true,
+    "runnable_draft_ready": true,
+    "review_ready": true,
+    "promotion_ready": true,
+    "benchmark_candidate": true
+  },
+  "profile_checks": {
+    "single_turn": {
+      "applicable": true,
+      "supported_skeleton": true,
+      "workflow_profile_aligned": true,
+      "verify_single_turn_ok": true,
+      "supported_skeletons": [
+        "single_turn_template",
+        "single_turn_splice",
+        "dataset_rank_then_attack"
+      ]
+    }
+  },
+  "phase_summaries": {
+    "planner_backend_used": "llm",
+    "forge_backend_used": "llm",
+    "execution_skeleton": "dataset_rank_then_attack",
+    "audit_verdict": "pass_with_review",
+    "verify_verdict": "pass"
+  },
+  "promotion_targets": {
+    "attack_module": "promptmap/attacks/radial_e2e_attack.py",
+    "catalog_entry": "promptmap/catalog/attacks/radial_e2e.yaml"
+  },
+  "recommended_next_actions": [
+    "Workflow criteria are satisfied for the current staging target."
+  ]
+}

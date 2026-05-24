@@ -55,14 +55,24 @@
     "audit_verdict_path": "audit_verdict.json",
     "review_checklist_path": "review_checklist.md",
     "verdict": "pass_with_review",
-    "categories": [
-      "benchmark_not_advised"
-    ]
+    "categories": []
   },
   "verification_phase_e": {
     "verification_report_md_path": "verification_report.md",
     "verification_report_json_path": "verification_report.json",
     "verdict": "pass",
     "categories": []
+  },
+  "workflow_status_phase_f": {
+    "workflow_status_md_path": "workflow_status.md",
+    "workflow_status_json_path": "workflow_status.json",
+    "workflow_stage": "promotion_ready",
+    "completion_checks": {
+      "pipeline_complete": true,
+      "runnable_draft_ready": true,
+      "review_ready": true,
+      "promotion_ready": true,
+      "benchmark_candidate": false
+    }
   }
 }

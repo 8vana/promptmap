@@ -3,14 +3,10 @@
 ## Audit Summary
 
 - `verdict`: `pass_with_review`
-- `categories`: benchmark_not_advised
+- `categories`: none
 
 ## Remaining Work
 
-- `construct_responses` is `partial`: Mapped helper `_build_response_templates` exists, but still contains TODO-driven or placeholder behavior.
-- `collect_instructions` is `partial`: Mapped helper `_collect_candidate_instructions` exists, but still contains TODO-driven or placeholder behavior.
-- `calculate_tendencies` is `partial`: The step identifier appears in the draft metadata, but there is no step-specific runtime logic.
-- Keep `supports_benchmark: false` until the audit findings are resolved.
 - Add focused tests before promotion.
 - Re-run `audit` after the next forge or manual refinement pass.
 

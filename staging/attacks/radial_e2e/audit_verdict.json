@@ -1,9 +1,7 @@
 {
   "attack_id": "radial_e2e",
   "verdict": "pass_with_review",
-  "categories": [
-    "benchmark_not_advised"
-  ],
+  "categories": [],
   "module_checks": {
     "py_compile_ok": true,
     "py_compile_error": "",
@@ -13,19 +11,22 @@
   },
   "catalog_checks": {
     "mismatches": [],
-    "supports_benchmark": false,
-    "source_type": "generated"
+    "supports_benchmark": true,
+    "source_type": "builtin"
   },
   "repo_support_checks": {
     "repo_evidence_count": 0,
     "divergence_count": 0,
     "repo_derived_hint_keys": [],
     "default_param_keys": [
+      "candidate_pool",
       "malicious_instruction_position",
       "num_affirmation_responses",
       "num_real_world_instructions",
       "num_rejection_responses",
-      "spliced_instructions_count"
+      "parallel_instruction_footer",
+      "parallel_instruction_header",
+      "selected_instruction_count"
     ],
     "generation_notes_repo_section_present": true,
     "silent_repo_dependency_detected": false,
@@ -33,18 +34,15 @@
   },
   "step_coverage": {
     "implemented": [
+      "construct_responses",
+      "collect_instructions",
+      "calculate_tendencies",
       "score_instructions",
       "filter_instructions",
       "splice_instructions"
     ],
-    "partial": [
-      "construct_responses",
-      "collect_instructions",
-      "calculate_tendencies"
-    ],
+    "partial": [],
     "missing": []
   },
-  "recommended_next_actions": [
-    "Keep supports_benchmark disabled until the implementation is paper-faithful and tested."
-  ]
+  "recommended_next_actions": []
 }

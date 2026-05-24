@@ -33,6 +33,13 @@
 - `snippet_file_count`: `0`
 - `manifest_snippet_count`: `0`
 
+## Single-Turn Checks
+
+- `applicable`: `true`
+- `ok`: `true`
+- `workflow_profile`: `single_turn`
+- `execution_skeleton`: `dataset_rank_then_attack`
+
 ## Recommended Actions
 
 - No additional actions recorded.
