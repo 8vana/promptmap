@@ -1,7 +1,14 @@
 {
   "attack_id": "radial_e2e",
-  "verdict": "pass",
-  "categories": [],
+  "verdict": "pass_with_warnings",
+  "categories": [
+    "forge_status_mismatch"
+  ],
+  "artifact_fingerprints": {
+    "implementation_plan.json": "181c2765f9984fce42a72dc3957d4629da02cacfbafdd084f6706eb241afe24d",
+    "attack_module.py": "cc8aa90a3b146399d885dce0446cf80dc04a239339ca2b6d6b9fd046e3ee80d0",
+    "attack_catalog.yaml": "6a0524554c7e016e4109635a9f4030ba4639bc869e50fe72aee2e491d4bd580b"
+  },
   "plan_checks": {
     "ok": true,
     "errors": [],
@@ -14,7 +21,45 @@
     "ok": true,
     "import_error": "",
     "class_name": "RadialE2eAttack",
-    "is_base_attack_subclass": true
+    "is_base_attack_subclass": true,
+    "forge_status": "production_ready",
+    "placeholder_markers": []
+  },
+  "runtime_checks": {
+    "ok": true,
+    "failure_categories": [],
+    "errors": [],
+    "event_types": [
+      "info",
+      "info",
+      "info",
+      "info",
+      "prompt",
+      "response",
+      "score",
+      "complete"
+    ],
+    "result_turns": 1,
+    "result_metadata_keys": [
+      "attack_prompt",
+      "candidate_count",
+      "default_params",
+      "execution_skeleton",
+      "family",
+      "forge_status",
+      "paper_title",
+      "paper_url",
+      "plan_ambiguities",
+      "plan_steps",
+      "plan_summary",
+      "prompt_fragments",
+      "ranked_candidate_count",
+      "repo_derived_hints",
+      "scorer_rationale",
+      "selected_instructions",
+      "step_symbol_map",
+      "tendency_strategy"
+    ]
   },
   "catalog_checks": {
     "schema_ok": true,
@@ -46,7 +91,9 @@
     "manifest_snippet_count": 0,
     "errors": []
   },
-  "recommended_next_actions": [],
+  "recommended_next_actions": [
+    "Align manifest forge_status with the module metadata before promotion."
+  ],
   "promotion_targets": {
     "attack_module": "promptmap/attacks/radial_e2e_attack.py",
     "catalog_entry": "promptmap/catalog/attacks/radial_e2e.yaml"

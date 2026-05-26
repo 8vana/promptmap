@@ -2,8 +2,8 @@
 
 ## Verdict
 
-- `verdict`: `pass`
-- `categories`: none
+- `verdict`: `pass_with_warnings`
+- `categories`: forge_status_mismatch
 
 ## Plan Checks
 
@@ -17,6 +17,15 @@
 - `import_smoke_ok`: `true`
 - `class_name`: `RadialE2eAttack`
 - `is_base_attack_subclass`: `true`
+- `forge_status`: `production_ready`
+- `placeholder_markers`: none
+
+## Runtime Checks
+
+- `ok`: `true`
+- `failure_categories`: none
+- `event_types`: info, info, info, info, prompt, response, score, complete
+- `result_turns`: `1`
 
 ## Catalog Checks
 
@@ -42,4 +51,4 @@
 
 ## Recommended Actions
 
-- No additional actions recorded.
+- Align manifest forge_status with the module metadata before promotion.

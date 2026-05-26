@@ -87,6 +87,10 @@ def build_forge_artifacts(config: ForgeConfig) -> ForgeOutcome:
     execution_skeleton, classification_signals = _classify_execution_skeleton(plan)
     workflow_profile = infer_single_turn_profile_name(execution_skeleton) if family == "single_turn" else family
     step_symbol_map = _build_step_symbol_map(plan, execution_skeleton)
+    step_implementation_contract = _build_step_implementation_contract(
+        plan,
+        step_symbol_map,
+    )
     selected_instruction_default = _infer_selected_instruction_default(default_params)
     affirmation_examples, rejection_examples = _split_prompt_fragments(plan.get("prompt_fragments"))
 
@@ -144,6 +148,7 @@ def build_forge_artifacts(config: ForgeConfig) -> ForgeOutcome:
         "affirmation_examples_literal": _py_literal(affirmation_examples),
         "rejection_examples_literal": _py_literal(rejection_examples),
         "step_symbol_map_literal": _py_literal(step_symbol_map),
+        "step_implementation_contract_literal": _py_literal(step_implementation_contract),
         "plan_step_ids_literal": _py_literal(
             [step.get("step_id") for step in plan.get("algorithm_steps", []) if isinstance(step, dict)]
         ),
@@ -360,6 +365,33 @@ def _build_step_symbol_map(plan: dict[str, Any], execution_skeleton: str) -> dic
             "todo_only": todo_only,
         }
     return mapping
+
+
+def _build_step_implementation_contract(
+    plan: dict[str, Any],
+    step_symbol_map: dict[str, dict[str, Any]],
+) -> dict[str, dict[str, Any]]:
+    contracts: dict[str, dict[str, Any]] = {}
+    for step in plan.get("algorithm_steps", []):
+        if not isinstance(step, dict):
+            continue
+        step_id = str(step.get("step_id") or "").strip()
+        if not step_id:
+            continue
+        mapping = step_symbol_map.get(step_id, {})
+        target_symbol = str(mapping.get("target_symbol") or "")
+        mapping_type = str(mapping.get("mapping_type") or "")
+        contracts[step_id] = {
+            "target_symbol": target_symbol,
+            "mapping_type": mapping_type or ("helper_method" if target_symbol.startswith("_") else "metadata_only"),
+            "todo_only": bool(mapping.get("todo_only")),
+            "required_runtime_signal": (
+                "helper_called_from_run"
+                if target_symbol.startswith("_")
+                else "metadata_reference"
+            ),
+        }
+    return contracts
 
 
 def _step_symbol_for(step_id: str, execution_skeleton: str) -> str:

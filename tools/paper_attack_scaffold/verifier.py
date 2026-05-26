@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import ast
 import hashlib
 import importlib.util
@@ -12,9 +13,17 @@ from typing import Any
 import yaml
 
 from promptmap.engine.base_attack import BaseAttack
+from promptmap.engine.base_scorer import BaseScorer
+from promptmap.engine.base_target import TargetAdapter
+from promptmap.engine.context import AttackContext
+from promptmap.engine.events import EVT_COMPLETE, EVT_PROMPT, EVT_RESPONSE
+from promptmap.engine.models import AttackResult, ScorerResult
+from promptmap.memory.session_memory import SessionMemory
 from promptmap.registry.attack_spec import AttackSpec
 
 from .common import normalize_attack_id, to_class_name
+from .lifecycle import FORGE_STATUS_DRAFT
+from .quality import extract_forge_status, find_placeholder_markers
 from .single_turn import (
     SUPPORTED_SINGLE_TURN_SKELETONS,
     has_complete_step_symbol_map,
@@ -59,6 +68,13 @@ def run_verify(config: VerifyConfig) -> VerifyOutcome:
     manifest = _read_json_dict(manifest_path)
     reference_manifest = _read_json_dict(reference_manifest_path)
     module_metadata = _extract_module_metadata(module_source)
+    module_forge_status = extract_forge_status(module_source)
+    placeholder_markers = find_placeholder_markers(module_source)
+    artifact_fingerprints = {
+        "implementation_plan.json": _sha256_text(plan_path.read_text(encoding="utf-8")),
+        "attack_module.py": _sha256_text(module_source),
+        "attack_catalog.yaml": _sha256_text(catalog_path.read_text(encoding="utf-8")),
+    }
 
     attack_id = normalize_attack_id(str(plan.get("attack_id") or config.attack_id))
     expected_class_name = to_class_name(attack_id)
@@ -91,6 +107,20 @@ def run_verify(config: VerifyConfig) -> VerifyOutcome:
             "Ensure the generated module imports cleanly and exposes a BaseAttack subclass."
         )
 
+    runtime_checks = _verify_runtime_contract(
+        module_path=module_path,
+        attack_id=attack_id,
+        expected_class_name=expected_class_name,
+        family=str(plan.get("family") or ""),
+    )
+    for category in runtime_checks["failure_categories"]:
+        if category not in categories:
+            categories.append(category)
+    if runtime_checks["failure_categories"]:
+        recommended_next_actions.append(
+            "Fix runtime smoke failures so the attack executes and emits the expected event contract."
+        )
+
     catalog_checks = _verify_catalog(
         catalog_data=catalog_data,
         expected_import_path=expected_import_path,
@@ -117,6 +147,23 @@ def run_verify(config: VerifyConfig) -> VerifyOutcome:
             "Complete the single-turn profile checks before treating this draft as single-turn complete."
         )
 
+    if module_forge_status == FORGE_STATUS_DRAFT:
+        categories.append("draft_artifact_detected")
+        recommended_next_actions.append(
+            "Replace draft forge markers with a reviewed implementation before promotion."
+        )
+    if placeholder_markers:
+        categories.append("placeholder_logic_detected")
+        recommended_next_actions.append(
+            "Remove TODO and placeholder logic markers before treating this attack as production-ready."
+        )
+    manifest_forge_status = str(manifest.get("forge_phase_b", {}).get("forge_status") or "").strip()
+    if manifest_forge_status and module_forge_status and manifest_forge_status != module_forge_status:
+        categories.append("forge_status_mismatch")
+        recommended_next_actions.append(
+            "Align manifest forge_status with the module metadata before promotion."
+        )
+
     reference_checks = _verify_reference_artifacts(
         reference_manifest=reference_manifest,
         reference_snippets_dir=reference_snippets_dir,
@@ -127,14 +174,20 @@ def run_verify(config: VerifyConfig) -> VerifyOutcome:
             "Repair reference_manifest.json / reference_snippets consistency."
         )
 
+    categories = list(dict.fromkeys(categories))
+    recommended_next_actions = list(dict.fromkeys(recommended_next_actions))
+
     if any(
         category in categories
         for category in (
-            "plan_contract_invalid",
-            "py_compile_failed",
-            "module_import_smoke_failed",
-            "catalog_schema_invalid",
-        )
+                "plan_contract_invalid",
+                "py_compile_failed",
+                "module_import_smoke_failed",
+                "catalog_schema_invalid",
+                "runtime_smoke_failed",
+                "event_contract_failed",
+                "result_contract_failed",
+            )
     ):
         verdict = "blocked_by_verification_failure"
     elif categories:
@@ -146,12 +199,16 @@ def run_verify(config: VerifyConfig) -> VerifyOutcome:
         "attack_id": attack_id,
         "verdict": verdict,
         "categories": categories,
+        "artifact_fingerprints": artifact_fingerprints,
         "plan_checks": plan_checks,
         "module_checks": {
             "py_compile_ok": py_compile_ok,
             "py_compile_error": py_compile_error,
             **import_smoke,
+            "forge_status": module_forge_status,
+            "placeholder_markers": placeholder_markers,
         },
+        "runtime_checks": runtime_checks,
         "catalog_checks": catalog_checks,
         "single_turn_checks": single_turn_checks,
         "reference_checks": reference_checks,
@@ -172,6 +229,10 @@ def _read_json_dict(path: Path) -> dict[str, Any]:
     except Exception:
         return {}
     return data if isinstance(data, dict) else {}
+
+
+def _sha256_text(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
 def _verify_plan_contract(plan: dict[str, Any]) -> dict[str, Any]:
@@ -245,46 +306,155 @@ def _check_py_compile(module_path: Path) -> tuple[bool, str]:
         return False, str(exc)
 
 
+def _load_attack_class(
+    *,
+    module_path: Path,
+    attack_id: str,
+    expected_class_name: str,
+) -> tuple[type[BaseAttack] | None, str]:
+    module_name = f"_promptmap_scaffold_verify_{attack_id}"
+    try:
+        spec = importlib.util.spec_from_file_location(module_name, module_path)
+        if spec is None or spec.loader is None:
+            return None, "Could not create import spec from staging module."
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        cls = getattr(module, expected_class_name, None)
+        if not isinstance(cls, type):
+            return None, f"Expected class '{expected_class_name}' not found."
+        if not issubclass(cls, BaseAttack):
+            return None, f"{expected_class_name} is not a BaseAttack subclass."
+        return cls, ""
+    except Exception as exc:
+        return None, f"{type(exc).__name__}: {exc}"
+
+
 def _verify_module_import(
     *,
     module_path: Path,
     attack_id: str,
     expected_class_name: str,
 ) -> dict[str, Any]:
-    module_name = f"_promptmap_scaffold_verify_{attack_id}"
-    try:
-        spec = importlib.util.spec_from_file_location(module_name, module_path)
-        if spec is None or spec.loader is None:
-            return {
-                "ok": False,
-                "import_error": "Could not create import spec from staging module.",
-                "class_name": expected_class_name,
-                "is_base_attack_subclass": False,
-            }
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
-        cls = getattr(module, expected_class_name, None)
-        if not isinstance(cls, type):
-            return {
-                "ok": False,
-                "import_error": f"Expected class '{expected_class_name}' not found.",
-                "class_name": expected_class_name,
-                "is_base_attack_subclass": False,
-            }
-        is_subclass = issubclass(cls, BaseAttack)
+    cls, error = _load_attack_class(
+        module_path=module_path,
+        attack_id=attack_id,
+        expected_class_name=expected_class_name,
+    )
+    return {
+        "ok": cls is not None,
+        "import_error": error,
+        "class_name": expected_class_name,
+        "is_base_attack_subclass": cls is not None,
+    }
+
+
+def _verify_runtime_contract(
+    *,
+    module_path: Path,
+    attack_id: str,
+    expected_class_name: str,
+    family: str,
+) -> dict[str, Any]:
+    cls, error = _load_attack_class(
+        module_path=module_path,
+        attack_id=attack_id,
+        expected_class_name=expected_class_name,
+    )
+    if cls is None:
         return {
-            "ok": is_subclass,
-            "import_error": "" if is_subclass else f"{expected_class_name} is not a BaseAttack subclass.",
-            "class_name": expected_class_name,
-            "is_base_attack_subclass": is_subclass,
+            "ok": False,
+            "failure_categories": ["runtime_smoke_failed"],
+            "errors": [error],
+            "event_types": [],
+            "result_turns": None,
+            "result_metadata_keys": [],
         }
+
+    try:
+        result, event_types = asyncio.run(_exercise_attack(cls))
     except Exception as exc:
         return {
             "ok": False,
-            "import_error": f"{type(exc).__name__}: {exc}",
-            "class_name": expected_class_name,
-            "is_base_attack_subclass": False,
+            "failure_categories": ["runtime_smoke_failed"],
+            "errors": [f"{type(exc).__name__}: {exc}"],
+            "event_types": [],
+            "result_turns": None,
+            "result_metadata_keys": [],
         }
+
+    failure_categories: list[str] = []
+    errors: list[str] = []
+    missing_events = [
+        event_type
+        for event_type in (EVT_PROMPT, EVT_RESPONSE, EVT_COMPLETE)
+        if event_type not in event_types
+    ]
+    if missing_events:
+        failure_categories.append("event_contract_failed")
+        errors.append("Missing emitted event types: " + ", ".join(missing_events))
+    if not isinstance(result, AttackResult):
+        failure_categories.append("result_contract_failed")
+        errors.append("run() did not return an AttackResult instance.")
+    else:
+        if result.turns < 1:
+            failure_categories.append("result_contract_failed")
+            errors.append("AttackResult.turns must be >= 1.")
+        if not isinstance(result.metadata, dict):
+            failure_categories.append("result_contract_failed")
+            errors.append("AttackResult.metadata must be a dict.")
+        if family == "single_turn" and result.turns != 1:
+            failure_categories.append("result_contract_failed")
+            errors.append(f"Single-turn attacks must finish in exactly 1 turn, got {result.turns}.")
+
+    return {
+        "ok": not failure_categories,
+        "failure_categories": failure_categories,
+        "errors": errors,
+        "event_types": event_types,
+        "result_turns": result.turns if isinstance(result, AttackResult) else None,
+        "result_metadata_keys": sorted(result.metadata.keys()) if isinstance(result, AttackResult) else [],
+    }
+
+
+async def _exercise_attack(cls: type[BaseAttack]) -> tuple[AttackResult, list[str]]:
+    progress_queue: asyncio.Queue = asyncio.Queue()
+    target = _RuntimeSmokeTarget()
+    ctx = AttackContext(
+        target=target,
+        adversarial_target=target,
+        scorer=_RuntimeSmokeScorer(),
+        converters=[_RuntimeSmokeConverter()],
+        memory=SessionMemory(),
+        progress_queue=progress_queue,
+    )
+    result = await cls().run(
+        ctx,
+        "Explain an innocuous process in detail.",
+        candidate_instructions=["Provide a harmless example with concrete steps."],
+        candidate_instruction="Provide a harmless example with concrete steps.",
+        seed_prompt="Describe a harmless household task.",
+        selected_instruction_count=1,
+    )
+    event_types: list[str] = []
+    while not progress_queue.empty():
+        event = progress_queue.get_nowait()
+        event_types.append(str(getattr(event, "type", "")))
+    return result, event_types
+
+
+class _RuntimeSmokeTarget(TargetAdapter):
+    async def send(self, prompt: str, conversation_id: str) -> str:
+        return f"stub target response: {prompt[:60]}"
+
+
+class _RuntimeSmokeScorer(BaseScorer):
+    async def score(self, response: str, objective: str) -> ScorerResult:
+        return ScorerResult(score=0.25, achieved=False, rationale="runtime smoke")
+
+
+class _RuntimeSmokeConverter:
+    async def convert(self, text: str) -> str:
+        return text
 
 
 def _verify_catalog(
@@ -488,10 +658,27 @@ def _render_verification_report(report: dict[str, Any]) -> str:
     lines.append(
         f"- `is_base_attack_subclass`: `{str(report['module_checks']['is_base_attack_subclass']).lower()}`"
     )
+    lines.append(f"- `forge_status`: `{report['module_checks']['forge_status'] or 'missing'}`")
+    lines.append(
+        f"- `placeholder_markers`: {', '.join(report['module_checks']['placeholder_markers']) if report['module_checks']['placeholder_markers'] else 'none'}"
+    )
     if report["module_checks"]["py_compile_error"]:
         lines.append(f"- `py_compile_error`: {report['module_checks']['py_compile_error']}")
     if report["module_checks"]["import_error"]:
         lines.append(f"- `import_error`: {report['module_checks']['import_error']}")
+    lines.append("")
+    lines.append("## Runtime Checks")
+    lines.append("")
+    lines.append(f"- `ok`: `{str(report['runtime_checks']['ok']).lower()}`")
+    lines.append(
+        f"- `failure_categories`: {', '.join(report['runtime_checks']['failure_categories']) if report['runtime_checks']['failure_categories'] else 'none'}"
+    )
+    lines.append(
+        f"- `event_types`: {', '.join(report['runtime_checks']['event_types']) if report['runtime_checks']['event_types'] else 'none'}"
+    )
+    lines.append(f"- `result_turns`: `{report['runtime_checks']['result_turns']}`")
+    if report["runtime_checks"]["errors"]:
+        lines.append(f"- `errors`: {'; '.join(report['runtime_checks']['errors'])}")
     lines.append("")
     lines.append("## Catalog Checks")
     lines.append("")

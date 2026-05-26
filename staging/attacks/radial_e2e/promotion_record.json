@@ -1,0 +1,12 @@
+{
+  "attack_id": "radial_e2e",
+  "promoted": true,
+  "promoted_at": "2026-05-25T23:16:16.773089+00:00",
+  "source_staging_dir": "staging/attacks/radial_e2e",
+  "workflow_stage_before_promote": "benchmark_candidate",
+  "forge_status_before_promote": "production_ready",
+  "attack_module_path": "promptmap/attacks/radial_e2e_attack.py",
+  "catalog_entry_path": "promptmap/catalog/attacks/radial_e2e.yaml",
+  "audit_verdict": "pass_with_review",
+  "verify_verdict": "pass"
+}

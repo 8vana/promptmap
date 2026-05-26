@@ -2,7 +2,8 @@
 
 ## Stage
 
-- `workflow_stage`: `benchmark_candidate`
+- `workflow_stage`: `promoted`
+- `forge_status`: `promoted`
 - `workflow_profile`: `single_turn`
 
 ## Phase Presence
@@ -11,14 +12,37 @@
 - `forge`: `true`
 - `audit`: `true`
 - `verify`: `true`
+- `promote`: `true`
 
 ## Completion Checks
 
 - `pipeline_complete`: `true`
 - `runnable_draft_ready`: `true`
 - `review_ready`: `true`
-- `promotion_ready`: `true`
-- `benchmark_candidate`: `true`
+- `promotion_ready`: `false`
+- `benchmark_candidate`: `false`
+- `promoted`: `true`
+
+## Freshness Checks
+
+### audit
+
+- `ok`: `true`
+- `missing_report_fingerprints`: `false`
+- `mismatches`: `[]`
+
+### verify
+
+- `ok`: `true`
+- `missing_report_fingerprints`: `false`
+- `mismatches`: `[]`
+
+
+## Consistency Checks
+
+- `manifest_snapshot_present`: `true`
+- `manifest_snapshot_matches`: `true`
+- `mismatches`: `[]`
 
 ## Profile Checks
 
@@ -35,10 +59,12 @@
 
 - `planner_backend_used`: `llm`
 - `forge_backend_used`: `llm`
+- `forge_status`: `promoted`
 - `execution_skeleton`: `dataset_rank_then_attack`
 - `audit_verdict`: `pass_with_review`
-- `verify_verdict`: `pass`
+- `verify_verdict`: `pass_with_warnings`
+- `promoted_at`: `2026-05-25T23:16:16.773089+00:00`
 
 ## Recommended Actions
 
-- Workflow criteria are satisfied for the current staging target.
+- Attack artifacts are promoted into PromptMap runtime paths.

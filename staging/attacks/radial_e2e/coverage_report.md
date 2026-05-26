@@ -43,6 +43,9 @@
 - `generic_baseline_detected`: `false`
 - `execution_skeleton`: `dataset_rank_then_attack`
 - `generation_notes_present`: `true`
+- `forge_status`: `production_ready`
+- `placeholder_markers`: none
+- `step_contracts_present`: `false`
 
 ## Catalog Checks
 
