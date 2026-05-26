@@ -24,7 +24,9 @@ from .common import (
 from .auditor import AuditConfig, run_audit
 from .forger import ForgeConfig, build_forge_artifacts
 from .ingest import ingest_inputs
+from .lifecycle import FORGE_STATUS_DRAFT, manifest_workflow_payload
 from .planner import PlannerConfig, build_plan, render_plan_markdown
+from .promoter import PromoteConfig, run_promote
 from .repo_ingest import (
     ingest_reference_repository,
     normalize_repo_url,
@@ -37,7 +39,7 @@ from .verifier import VerifyConfig, run_verify
 
 def main(argv: list[str] | None = None) -> None:
     argv = list(sys.argv[1:] if argv is None else argv)
-    if argv and argv[0] not in {"scaffold", "plan", "forge", "audit", "verify", "status", "-h", "--help"}:
+    if argv and argv[0] not in {"scaffold", "plan", "forge", "audit", "verify", "status", "promote", "-h", "--help"}:
         argv = ["scaffold", *argv]
     if not argv:
         argv = ["-h"]
@@ -53,6 +55,7 @@ def main(argv: list[str] | None = None) -> None:
     _build_audit_parser(subparsers.add_parser("audit", help="Audit plan-to-code coverage for a staging directory."))
     _build_verify_parser(subparsers.add_parser("verify", help="Run promotion-oriented local verification checks for a staging directory."))
     _build_status_parser(subparsers.add_parser("status", help="Summarize workflow readiness and next actions for a staging directory."))
+    _build_promote_parser(subparsers.add_parser("promote", help="Promote reviewed staging artifacts into PromptMap runtime paths."))
 
     args = parser.parse_args(argv)
     if args.command == "scaffold":
@@ -72,6 +75,9 @@ def main(argv: list[str] | None = None) -> None:
         return
     if args.command == "status":
         _run_status(args, parser)
+        return
+    if args.command == "promote":
+        _run_promote(args, parser)
         return
     parser.print_help()
 
@@ -184,6 +190,18 @@ def _build_status_parser(parser: argparse.ArgumentParser) -> None:
                         help="Staging root when --staging-dir is not supplied. Default: staging/attacks")
     parser.add_argument("--force", action="store_true",
                         help="Overwrite existing workflow status artifacts if present.")
+
+
+def _build_promote_parser(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--attack-id", default=None, help="Attack id used to resolve the staging directory.")
+    parser.add_argument("--staging-dir", default=None,
+                        help="Optional direct path to a staging directory to promote.")
+    parser.add_argument("--output-dir", default="staging/attacks",
+                        help="Staging root when --staging-dir is not supplied. Default: staging/attacks")
+    parser.add_argument("--repo-root", default=".",
+                        help="Repository root where promptmap runtime files should be written. Default: current directory")
+    parser.add_argument("--force", action="store_true",
+                        help="Overwrite existing runtime files if present.")
 
 
 def _run_scaffold(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
@@ -506,6 +524,7 @@ def _run_forge(args: argparse.Namespace, parser: argparse.ArgumentParser) -> Non
         "provider": args.provider or "",
         "model": args.model or "",
         "execution_skeleton": outcome.execution_skeleton,
+        "forge_status": FORGE_STATUS_DRAFT,
         "classification_signals": outcome.classification_signals,
         "workflow_profile": outcome.workflow_profile,
         "implementation_plan_json_path": "implementation_plan.json",
@@ -518,6 +537,7 @@ def _run_forge(args: argparse.Namespace, parser: argparse.ArgumentParser) -> Non
         "raw_forge_output_path": "raw_forge_output.json" if outcome.raw_payload is not None else "",
         "raw_forge_response_path": "raw_forge_response.txt" if outcome.raw_payload is not None else "",
     }
+    existing_manifest.pop("promotion_phase_g", None)
     write_text(
         staging_dir / "manifest.json",
         json.dumps(existing_manifest, indent=2, ensure_ascii=False) + "\n",
@@ -680,17 +700,38 @@ def _run_status(args: argparse.Namespace, parser: argparse.ArgumentParser) -> No
     existing_manifest = _load_existing_manifest(staging_dir / "manifest.json")
     existing_manifest.setdefault("attack_id", attack_id)
     existing_manifest.setdefault("staging_dir", str(staging_dir))
-    existing_manifest["workflow_status_phase_f"] = {
-        "workflow_status_md_path": "workflow_status.md",
-        "workflow_status_json_path": "workflow_status.json",
-        "workflow_stage": outcome.workflow_status.get("workflow_stage", ""),
-        "completion_checks": outcome.workflow_status.get("completion_checks", {}),
-    }
+    existing_manifest["workflow_status_phase_f"] = manifest_workflow_payload(outcome.workflow_status)
     write_text(
         staging_dir / "manifest.json",
         json.dumps(existing_manifest, indent=2, ensure_ascii=False) + "\n",
     )
     print(staging_dir)
+
+
+def _run_promote(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
+    if not args.staging_dir and not args.attack_id:
+        parser.error("promote requires either --staging-dir or --attack-id")
+
+    if args.staging_dir:
+        staging_dir = Path(args.staging_dir)
+        attack_id = normalize_attack_id(args.attack_id or staging_dir.name)
+    else:
+        attack_id = normalize_attack_id(args.attack_id)
+        staging_dir = Path(args.output_dir) / attack_id
+
+    try:
+        outcome = run_promote(
+            PromoteConfig(
+                attack_id=attack_id,
+                staging_dir=staging_dir,
+                repo_root=Path(args.repo_root).resolve(),
+                force=args.force,
+            )
+        )
+    except ValueError as exc:
+        parser.error(str(exc))
+    print(outcome.attack_module_path)
+    print(outcome.catalog_entry_path)
 
 
 def _fallback_attack_id(

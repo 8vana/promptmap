@@ -2,12 +2,15 @@ from __future__ import annotations
 
 import ast
 from dataclasses import dataclass
+import hashlib
 import json
 from pathlib import Path
 import py_compile
 from typing import Any
 
 import yaml
+
+from .quality import extract_forge_status, find_placeholder_markers
 
 
 @dataclass(frozen=True)
@@ -40,12 +43,20 @@ def run_audit(config: AuditConfig) -> AuditOutcome:
     module_source = module_path.read_text(encoding="utf-8")
     catalog = yaml.safe_load(catalog_path.read_text(encoding="utf-8")) or {}
     generation_notes_text = _read_optional_text(generation_notes_path)
+    artifact_fingerprints = {
+        "implementation_plan.json": _sha256_text(plan_path.read_text(encoding="utf-8")),
+        "attack_module.py": _sha256_text(module_source),
+        "attack_catalog.yaml": _sha256_text(catalog_path.read_text(encoding="utf-8")),
+        "generation_notes.md": _sha256_text(generation_notes_text) if generation_notes_text else "",
+    }
 
     module_runtime_source = _runtime_source(module_source)
     py_compile_ok, py_compile_error = _check_py_compile(module_path)
     module_metadata = _extract_module_metadata(module_source)
     method_sources = _extract_method_sources(module_source)
     run_source = method_sources.get("run", "")
+    module_forge_status = extract_forge_status(module_source)
+    placeholder_markers = find_placeholder_markers(module_source)
 
     generic_baseline_detected = "forge draft executing plan-driven baseline flow" in module_source
 
@@ -55,6 +66,7 @@ def run_audit(config: AuditConfig) -> AuditOutcome:
             runtime_source=module_runtime_source,
             generic_baseline_detected=generic_baseline_detected,
             step_symbol_map=module_metadata.get("STEP_SYMBOL_MAP", {}),
+            step_contracts=module_metadata.get("STEP_IMPLEMENTATION_CONTRACT", {}),
             method_sources=method_sources,
             run_source=run_source,
         )
@@ -66,16 +78,32 @@ def run_audit(config: AuditConfig) -> AuditOutcome:
     recommended_actions: list[str] = []
 
     missing_steps = [step for step in step_results if step["status"] == "missing"]
+    partial_steps = [step for step in step_results if step["status"] == "partial"]
 
     if missing_steps:
         categories.append("missing_algorithm_steps")
         recommended_actions.append(
             "Implement the missing algorithm steps in attack_module.py before promotion."
         )
+    if partial_steps:
+        categories.append("partial_algorithm_steps")
+        recommended_actions.append(
+            "Finish the partially implemented plan steps before promotion."
+        )
     if generic_baseline_detected:
         categories.append("unsafe_inference_detected")
         recommended_actions.append(
             "Replace the generic forge baseline with paper-specific prompt construction and control flow."
+        )
+    if module_forge_status == "draft":
+        categories.append("draft_artifact_detected")
+        recommended_actions.append(
+            "Promote only after the module no longer declares forge_status=draft."
+        )
+    if placeholder_markers:
+        categories.append("placeholder_logic_detected")
+        recommended_actions.append(
+            "Remove TODO and placeholder markers before promotion."
         )
 
     catalog_checks = _audit_catalog(plan, catalog)
@@ -99,10 +127,13 @@ def run_audit(config: AuditConfig) -> AuditOutcome:
             "Resolve catalog mismatches so runtime metadata stays aligned with the implementation plan."
         )
 
+    categories = list(dict.fromkeys(categories))
+    recommended_actions = list(dict.fromkeys(recommended_actions))
+
     if not py_compile_ok:
         verdict = "blocked_by_missing_information"
         recommended_actions.append("Fix Python syntax/import issues before continuing.")
-    elif missing_steps or generic_baseline_detected:
+    elif missing_steps or partial_steps or generic_baseline_detected or placeholder_markers or module_forge_status == "draft":
         verdict = "needs_refinement"
     else:
         verdict = "pass_with_review"
@@ -111,12 +142,16 @@ def run_audit(config: AuditConfig) -> AuditOutcome:
         "attack_id": plan.get("attack_id") or config.attack_id,
         "verdict": verdict,
         "categories": categories,
+        "artifact_fingerprints": artifact_fingerprints,
         "module_checks": {
             "py_compile_ok": py_compile_ok,
             "py_compile_error": py_compile_error,
             "generic_baseline_detected": generic_baseline_detected,
             "execution_skeleton": module_metadata.get("EXECUTION_SKELETON", ""),
             "generation_notes_present": bool(generation_notes_text.strip()),
+            "forge_status": module_forge_status,
+            "placeholder_markers": placeholder_markers,
+            "step_contracts_present": bool(module_metadata.get("STEP_IMPLEMENTATION_CONTRACT")),
         },
         "catalog_checks": catalog_checks,
         "repo_support_checks": repo_support_checks,
@@ -153,6 +188,10 @@ def _read_optional_text(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
+def _sha256_text(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
 def _runtime_source(module_source: str) -> str:
     marker = "\nclass "
     _, sep, tail = module_source.partition(marker)
@@ -187,6 +226,7 @@ def _extract_module_metadata(module_source: str) -> dict[str, Any]:
                 "PLAN_STEP_IDS",
                 "REPO_DERIVED_HINTS",
                 "DEFAULT_PARAMS",
+                "STEP_IMPLEMENTATION_CONTRACT",
             }:
                 try:
                     metadata[target.id] = ast.literal_eval(node.value)
@@ -216,6 +256,7 @@ def _audit_step(
     runtime_source: str,
     generic_baseline_detected: bool,
     step_symbol_map: dict[str, Any],
+    step_contracts: dict[str, Any],
     method_sources: dict[str, str],
     run_source: str,
 ) -> dict[str, str]:
@@ -228,11 +269,15 @@ def _audit_step(
     reason = "No implementation signal detected for this plan step."
 
     mapping = step_symbol_map.get(step_id) if isinstance(step_symbol_map, dict) else None
+    contract = step_contracts.get(step_id) if isinstance(step_contracts, dict) else None
     mapped_symbol = ""
     todo_only = False
     if isinstance(mapping, dict):
         mapped_symbol = str(mapping.get("target_symbol") or "")
         todo_only = bool(mapping.get("todo_only"))
+    if not mapped_symbol and isinstance(contract, dict):
+        mapped_symbol = str(contract.get("target_symbol") or "")
+        todo_only = bool(contract.get("todo_only"))
 
     if mapped_symbol.startswith("_"):
         method_name = mapped_symbol
@@ -241,6 +286,7 @@ def _audit_step(
         method_called = bool(run_source and method_name in run_source)
         if method_source:
             has_todo = "todo(" in method_lower or "todo:" in method_lower
+            has_placeholders = bool(find_placeholder_markers(method_source))
             has_substantive_logic = any(
                 token in method_lower
                 for token in (
@@ -255,7 +301,7 @@ def _audit_step(
                     "emit(",
                 )
             )
-            if method_called and has_substantive_logic and not has_todo and not todo_only:
+            if method_called and has_substantive_logic and not has_todo and not has_placeholders and not todo_only:
                 status = "implemented"
                 reason = f"Mapped helper `{mapped_symbol}` exists, is called from `run`, and contains non-TODO logic."
             elif method_called or has_substantive_logic:
@@ -425,6 +471,13 @@ def _render_coverage_report(
     lines.append(
         f"- `generation_notes_present`: `{str(verdict['module_checks']['generation_notes_present']).lower()}`"
     )
+    lines.append(f"- `forge_status`: `{verdict['module_checks']['forge_status'] or 'missing'}`")
+    lines.append(
+        f"- `placeholder_markers`: {', '.join(verdict['module_checks']['placeholder_markers']) if verdict['module_checks']['placeholder_markers'] else 'none'}"
+    )
+    lines.append(
+        f"- `step_contracts_present`: `{str(verdict['module_checks']['step_contracts_present']).lower()}`"
+    )
     if verdict["module_checks"]["py_compile_error"]:
         lines.append(f"- `py_compile_error`: {verdict['module_checks']['py_compile_error']}")
     lines.append("")
@@ -497,6 +550,8 @@ def _render_review_checklist(
         )
     for missing_signal in verdict.get("repo_support_checks", {}).get("missing_signals", []):
         lines.append(f"- Repo support gap: {missing_signal}")
+    for marker in verdict.get("module_checks", {}).get("placeholder_markers", []):
+        lines.append(f"- Remove placeholder marker: `{marker}`")
     if not catalog_checks["supports_benchmark"]:
         lines.append("- Keep `supports_benchmark: false` until the audit findings are resolved.")
     lines.append("- Add focused tests before promotion.")

@@ -1,19 +1,40 @@
 {
+  "schema_version": 2,
   "attack_id": "radial_e2e",
-  "workflow_stage": "benchmark_candidate",
+  "workflow_stage": "promoted",
+  "forge_status": "promoted",
   "workflow_profile": "single_turn",
   "phase_presence": {
     "plan": true,
     "forge": true,
     "audit": true,
-    "verify": true
+    "verify": true,
+    "promote": true
   },
   "completion_checks": {
     "pipeline_complete": true,
     "runnable_draft_ready": true,
     "review_ready": true,
-    "promotion_ready": true,
-    "benchmark_candidate": true
+    "promotion_ready": false,
+    "benchmark_candidate": false,
+    "promoted": true
+  },
+  "freshness_checks": {
+    "audit": {
+      "ok": true,
+      "missing_report_fingerprints": false,
+      "mismatches": []
+    },
+    "verify": {
+      "ok": true,
+      "missing_report_fingerprints": false,
+      "mismatches": []
+    }
+  },
+  "consistency_checks": {
+    "manifest_snapshot_present": true,
+    "manifest_snapshot_matches": true,
+    "mismatches": []
   },
   "profile_checks": {
     "single_turn": {
@@ -31,15 +52,17 @@
   "phase_summaries": {
     "planner_backend_used": "llm",
     "forge_backend_used": "llm",
+    "forge_status": "promoted",
     "execution_skeleton": "dataset_rank_then_attack",
     "audit_verdict": "pass_with_review",
-    "verify_verdict": "pass"
+    "verify_verdict": "pass_with_warnings",
+    "promoted_at": "2026-05-25T23:16:16.773089+00:00"
   },
   "promotion_targets": {
     "attack_module": "promptmap/attacks/radial_e2e_attack.py",
     "catalog_entry": "promptmap/catalog/attacks/radial_e2e.yaml"
   },
   "recommended_next_actions": [
-    "Workflow criteria are satisfied for the current staging target."
+    "Attack artifacts are promoted into PromptMap runtime paths."
   ]
 }

@@ -2,12 +2,21 @@
   "attack_id": "radial_e2e",
   "verdict": "pass_with_review",
   "categories": [],
+  "artifact_fingerprints": {
+    "implementation_plan.json": "181c2765f9984fce42a72dc3957d4629da02cacfbafdd084f6706eb241afe24d",
+    "attack_module.py": "cc8aa90a3b146399d885dce0446cf80dc04a239339ca2b6d6b9fd046e3ee80d0",
+    "attack_catalog.yaml": "6a0524554c7e016e4109635a9f4030ba4639bc869e50fe72aee2e491d4bd580b",
+    "generation_notes.md": "56e7a12aa6bd43f5e3ee5088ce6ab3adf2059544ba22db8e52402dd6c3cb565b"
+  },
   "module_checks": {
     "py_compile_ok": true,
     "py_compile_error": "",
     "generic_baseline_detected": false,
     "execution_skeleton": "dataset_rank_then_attack",
-    "generation_notes_present": true
+    "generation_notes_present": true,
+    "forge_status": "production_ready",
+    "placeholder_markers": [],
+    "step_contracts_present": false
   },
   "catalog_checks": {
     "mismatches": [],

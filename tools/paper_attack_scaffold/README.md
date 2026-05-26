@@ -19,6 +19,7 @@ The tool currently supports:
 - `audit`
 - `verify`
 - `status`
+- `promote`
 
 `scaffold` is the original metadata-first skeleton generator.
 
@@ -33,13 +34,18 @@ catalog and review artifacts.
 the generated module and catalog, then writes a coverage report and verdict.
 
 `verify` is the promotion-oriented local verification layer. It performs
-artifact checks such as import smoke, catalog schema validation, plan contract
-validation, and reference artifact consistency checks.
+artifact checks such as import smoke, runtime smoke, catalog schema
+validation, plan contract validation, and reference artifact consistency
+checks.
 
 `status` is the workflow-oriented summary layer. It combines manifest data plus
 `audit` / `verify` outputs and reports whether a staging target is currently
-`planned`, `forged`, `review_ready`, `promotion_ready`, or
-`benchmark_candidate`.
+`planned`, `forged`, `review_ready`, `promotion_ready`,
+`benchmark_candidate`, or `promoted`.
+
+`promote` is the guarded runtime promotion step. It copies reviewed staging
+artifacts into `promptmap/attacks/` and `promptmap/catalog/attacks/` only when
+the promotion gates pass.
 
 ## Current Completion Scope
 
@@ -48,7 +54,7 @@ The workflow is currently being completed with a **single-turn-first** strategy.
 That means the primary completion target is not "paper-faithful auto-reproduction
 of every jailbreak paper", but rather:
 
-- stable `plan -> forge -> audit -> verify -> status` execution
+- stable `plan -> forge -> audit -> verify -> status -> promote` execution
 - PromptMap-compatible attack module drafts
 - explicit review surfaces for missing or partial implementation
 - promotion and benchmark gates that are separate from code generation
@@ -381,6 +387,14 @@ The status layer currently tracks these completion checks:
 - `review_ready`
 - `promotion_ready`
 - `benchmark_candidate`
+- `promoted`
+
+It also writes a canonical `forge_status`:
+
+- `draft`
+- `review_ready`
+- `production_ready`
+- `promoted`
 
 For single-turn attacks it also records profile-oriented checks such as:
 
@@ -396,7 +410,9 @@ For a single-turn draft, `promotion_ready` is intended to mean:
 - `verify` returned `pass`
 - `audit` returned `pass_with_review`
 - no missing plan steps remain
+- no partial plan steps remain
 - no generic baseline flow remains
+- no placeholder or TODO markers remain
 - catalog mismatches are absent
 - the single-turn profile checks pass
 
@@ -406,6 +422,39 @@ explicitly confirmed.
 
 This makes the forge workflow easier to operate as a reusable pipeline instead
 of a one-off paper reproduction script.
+
+## `promote` usage
+
+Run `promote` only after `status` reports `promotion_ready: true`.
+
+```bash
+python -m tools.paper_attack_scaffold promote \
+  --attack-id radial_e2e \
+  --output-dir staging/attacks \
+  --repo-root . \
+  --force
+```
+
+Or point directly at a staging directory:
+
+```bash
+python -m tools.paper_attack_scaffold promote \
+  --staging-dir staging/attacks/radial_e2e \
+  --repo-root . \
+  --force
+```
+
+`promote` writes:
+
+- runtime attack module into `promptmap/attacks/`
+- runtime catalog entry into `promptmap/catalog/attacks/`
+- `promotion_record.json`
+- refreshed `workflow_status.md`
+- refreshed `workflow_status.json`
+- `manifest.json` updated with `promotion_phase_g`
+
+Before promotion, `promote` re-runs `audit` and `verify` on the current staging
+artifacts so stale reports cannot unlock promotion.
 
 ## Evidence Model
 
@@ -424,17 +473,27 @@ silently treating repository code as the primary source of truth.
 
 1. Review `review_checklist.md`
 2. Replace scaffold logic in `attack_module.py` with the actual paper flow
-3. Validate metadata in `attack_catalog.yaml`
-4. Promote files into:
-   - `promptmap/attacks/<module_name>.py`
-   - `promptmap/catalog/attacks/<attack_id>.yaml`
-5. Add tests
-6. Run repository validation
+3. Run `audit`, `verify`, and `status`
+4. Confirm `promotion_ready: true` and `forge_status: production_ready`
+5. Run `promote`
+6. Add or refresh tests
+7. Run repository validation
+
+## Definition Of Done
+
+An attack is ready for promotion when:
+
+- `verify` returns `pass`
+- `audit` returns `pass_with_review`
+- no missing or partial algorithm steps remain
+- no placeholder markers remain
+- `status` reports `promotion_ready: true`
+- `promote` succeeds and records `promotion_phase_g`
 
 ## Safety Notes
 
 - New scaffolds default to `source_type: generated`
 - `supports_benchmark` defaults to `false`
-- the generated module includes `metadata["scaffold_status"] = "needs_review"`
+- forged modules start with `metadata["forge_status"] = "draft"`
 
 That makes it harder to mistake a staging artifact for a production-complete attack.
